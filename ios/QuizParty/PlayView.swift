@@ -36,7 +36,29 @@ struct PlayView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.horizontal)
+            .overlay(alignment: .top) {
+                if session.paused {
+                    Label("Paused", systemImage: "pause.circle.fill")
+                        .font(.title2.weight(.heavy))
+                        .foregroundStyle(Theme.background)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Theme.accent, in: .capsule)
+                        .padding(.top, 8)
+                }
+            }
             .animation(.default, value: session.screen)
+            if let nextUp = session.nextUp, showsCountdown {
+                // The countdown to what comes next, under the result or the standings.
+                TimelineView(.periodic(from: .now, by: 0.25)) { context in
+                    let seconds = Int(max(0, nextUp.at.timeIntervalSince(context.date)).rounded(.up))
+                    Text("\(nextUp.title) in \(seconds)")
+                        .font(.title2.weight(.heavy))
+                        .foregroundStyle(Theme.accent)
+                        .monospacedDigit()
+                }
+                .padding(.bottom, 8)
+            }
             if showsLeave {
                 Button(isOver ? "Done" : "Leave the Party", role: isOver ? nil : .destructive, action: leave)
                     .padding(.bottom, 8)
@@ -46,6 +68,14 @@ struct PlayView: View {
 
     private var isOver: Bool {
         if case .ended = session.screen { true } else { false }
+    }
+
+    /// The countdown to moving on is shown under the result and the standings.
+    private var showsCountdown: Bool {
+        switch session.screen {
+        case .result, .ranking: true
+        default: false
+        }
     }
 
     /// Leaving is offered between questions, not where a stray tap would cost an answer.
@@ -116,7 +146,8 @@ private struct QuestionScreen: View {
 
     var body: some View {
         TimelineView(.animation) { context in
-            let now = context.date
+            // While the clock is stopped, so is the countdown.
+            let now = session.pausedAt ?? context.date
             VStack(spacing: 10) {
                 HStack {
                     Text("Question \(question.number) of \(question.total)")
@@ -135,11 +166,18 @@ private struct QuestionScreen: View {
                         .frame(maxHeight: 180)
                 }
                 answers(enabled: session.canAnswer(at: now))
-                Text(session.choice == nil ? (session.canAnswer(at: now) ? " " : "Time's up!") : "Answer locked in!")
+                Text(status(at: now))
                     .font(.title3.weight(.heavy))
             }
         }
         .sensoryFeedback(.impact(weight: .heavy), trigger: session.choice)
+    }
+
+    /// What to say under the answers: that the answer is locked in, or the time is up, or nothing.
+    private func status(at now: Date) -> String {
+        if session.choice != nil { return "Answer locked in!" }
+        if session.paused || session.canAnswer(at: now) { return " " }
+        return "Time's up!"
     }
 
     /// The time left, as a shrinking bar which turns red in the last five seconds.

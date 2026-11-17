@@ -391,9 +391,104 @@ button.primary:hover {
     flex: 0 0 auto;
     display: flex;
     justify-content: flex-end;
+    align-items: center;
     gap: 0.75rem;
     padding-top: 0.75rem;
     border-top: 1px solid var(--border);
+}
+
+.controls label, .auto-settings label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.paused-note {
+    color: var(--header);
+    font-weight: 700;
+}
+
+button.danger {
+    background-color: var(--invalid);
+    color: #ffffff;
+    border-color: var(--invalid);
+}
+
+/* A player in the lobby can be removed by the host: the button shows only when the pointer is over the name, so
+   that the big screen is not cluttered. */
+.lobby-players li .remove {
+    margin-left: 0.5rem;
+    padding: 0 0.4rem;
+    font-size: 1rem;
+    line-height: 1.4;
+    visibility: hidden;
+}
+
+.lobby-players li:hover .remove {
+    visibility: visible;
+}
+
+/* Setup, before the guests arrive: the quizzes and settings on the left, the host pairing QR code on the right. */
+.setup {
+    display: flex;
+    flex: 1 1 auto;
+    gap: 3rem;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 1rem 2rem;
+    overflow: auto;
+}
+
+.setup-main {
+    flex: 1 1 auto;
+    max-width: 640px;
+}
+
+.setup-pair {
+    flex: 0 0 auto;
+    max-width: 440px;
+}
+
+.setup-quizzes {
+    list-style: none;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    font-size: 1.1rem;
+}
+
+.setup-quizzes label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.auto-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.auto-settings input[type="number"] {
+    width: 4.5rem;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid #404045;
+    border-radius: 4px;
+    padding: 4px 6px;
+}
+
+.setup-start {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+button.big-button {
+    font-size: 1.2rem;
+    padding: 14px 32px;
 }
 
 /* A question, or its reveal, as asked: the text across the top, the countdown or the bars in the middle, and the
@@ -601,4 +696,22 @@ table.standings td.quiz-column {
 
 .credits p {
     margin: 0.25rem 0;
+}
+
+/* The countdown to moving on, under the answer or the standings: what comes next, and the seconds until it. */
+.next-countdown {
+    flex: 0 0 auto;
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--muted);
+    padding: 0.5rem 0;
+}
+
+.next-countdown-seconds {
+    display: inline-block;
+    min-width: 2ch;
+    color: var(--accent);
+    font-size: 2.6rem;
+    font-weight: 800;
 }

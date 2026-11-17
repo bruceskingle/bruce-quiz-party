@@ -114,9 +114,6 @@ public final class PlayerSession {
         case ended(String)
     }
 
-    /// How long to wait before reconnecting after the connection drops, growing to the last.
-    static let reconnectDelays: [Duration] = [.milliseconds(500), .seconds(1), .seconds(2), .seconds(4)]
-
     public let address: PartyAddress
     public let code: String
     /// The player's name, as the controller has it.
@@ -134,11 +131,15 @@ public final class PlayerSession {
     /// E.g. "3 of 5 answered".
     public private(set) var answered: String = ""
 
+    /// Whether the host has stopped the clock.
+    public var paused: Bool { pausedAt != nil }
+    /// When the host stopped the clock, while it is stopped, for the countdown to stand still.
+    public private(set) var pausedAt: Date?
+    /// What comes next and when, by this phone's clock, while the party counts down to moving on.
+    public private(set) var nextUp: (title: String, at: Date)?
+
     private let memory: JoinMemory
-    private let session = URLSession(configuration: .default)
-    private var task: URLSessionWebSocketTask?
-    private var stayConnected = false
-    private var reconnects = 0
+    private var connection: Connection?
 
     /// A session for joining the party at `address` with `code` as `name`; an empty name rejoins with the token
     /// remembered for the code.
@@ -151,21 +152,30 @@ public final class PlayerSession {
 
     /// Connects and joins.
     public func start() {
-        stayConnected = true
-        connect()
+        guard let url = address.webSocketURL else {
+            screen = .refused("That isn't a party's address.")
+            return
+        }
+        let connection = Connection(url: url)
+        connection.opened = { [unowned self] in
+            let saved = memory.entry(code: code)
+            send(.join(gameCode: code, name: name.isEmpty ? saved?.name ?? "" : name, token: saved?.token))
+        }
+        connection.received = { [unowned self] in handle($0) }
+        connection.dropped = { [unowned self] in screen = .connecting("Reconnecting…") }
+        self.connection = connection
+        connection.start()
     }
 
     /// Leaves the party: closes the connection and stops reconnecting. The token is kept, to rejoin later.
     public func leave() {
-        stayConnected = false
-        task?.cancel(with: .goingAway, reason: nil)
-        task = nil
+        connection?.stop()
     }
 
     /// Answers the question being asked, once, while there is time; the answer is locked at once rather than waiting
     /// for the controller's reply.
     public func answer(_ position: Int) {
-        guard screen == .question, choice == nil, let question, let endsAt, Date() < endsAt else { return }
+        guard canAnswer(at: Date()), let question else { return }
         let choice = UInt8(position)
         send(.answer(question: question.question, choice: choice))
         self.choice = choice
@@ -173,78 +183,40 @@ public final class PlayerSession {
 
     /// Whether the answers can still be pressed.
     public func canAnswer(at date: Date) -> Bool {
-        screen == .question && choice == nil && endsAt.map { date < $0 } == true
-    }
-
-    private func connect() {
-        guard let url = address.webSocketURL else {
-            screen = .refused("That isn't a party's address.")
-            return
-        }
-        let task = session.webSocketTask(with: url)
-        self.task = task
-        task.resume()
-        let saved = memory.entry(code: code)
-        send(.join(gameCode: code, name: name.isEmpty ? saved?.name ?? "" : name, token: saved?.token))
-        Task { await receive(from: task) }
-    }
-
-    /// Handles the connection's messages until it closes, then reconnects if the player is still playing.
-    private func receive(from task: URLSessionWebSocketTask) async {
-        while true {
-            let message: URLSessionWebSocketTask.Message
-            do {
-                message = try await task.receive()
-            } catch {
-                dropped(task)
-                return
-            }
-            guard self.task === task else { return }
-            let data: Data
-            switch message {
-            case .string(let text): data = Data(text.utf8)
-            case .data(let bytes): data = bytes
-            @unknown default: continue
-            }
-            // A message this app cannot read, e.g. from a newer controller, is ignored.
-            if let message = try? ServerMessage.decode(data) {
-                handle(message)
-            }
-        }
-    }
-
-    private func dropped(_ task: URLSessionWebSocketTask) {
-        guard self.task === task, stayConnected else { return }
-        let delay = Self.reconnectDelays[min(reconnects, Self.reconnectDelays.count - 1)]
-        reconnects += 1
-        screen = .connecting("Reconnecting…")
-        Task {
-            try? await Task.sleep(for: delay)
-            if self.task === task, stayConnected {
-                connect()
-            }
-        }
+        screen == .question && choice == nil && !paused && endsAt.map { date < $0 } == true
     }
 
     private func send(_ message: ClientMessage) {
-        guard let task, let data = try? message.encoded() else { return }
-        // A failure shows as the connection dropping, handled by `receive`.
-        task.send(.string(String(decoding: data, as: UTF8.self))) { _ in }
+        connection?.send(message)
     }
 
     /// Handles a message from the controller.
     func handle(_ message: ServerMessage) {
+        switch message {
+        case .lobby, .question, .reveal, .standings, .leaderboard, .resumed, .partyEnded:
+            // Whatever the party shows next, the clock is running again.
+            pausedAt = nil
+        default:
+            break
+        }
+        switch message {
+        case .lobby, .question, .reveal, .standings, .leaderboard, .paused, .removed, .partyEnded:
+            // Whatever the party shows next ends any countdown; a new one follows it if it is counting down again.
+            nextUp = nil
+        default:
+            break
+        }
         switch message {
         case .ping(let nonce):
             send(.pong(nonce: nonce))
         case .welcome(let player, let token, let name):
             self.player = player
             self.name = name
-            reconnects = 0
+            connection?.succeeded()
             memory.remember(code: code, .init(token: token, name: name))
             screen = .lobby
         case .rejected(let reason, let message):
-            stayConnected = false
+            connection?.stop()
             if reason == .wrongGameCode {
                 memory.forget(code: code)
             }
@@ -275,14 +247,18 @@ public final class PlayerSession {
             screen = .ranking(Ranking(standings))
         case .leaderboard(let board):
             screen = .ranking(Ranking(board))
+        case .paused:
+            pausedAt = pausedAt ?? Date()
+        case .countdown(let next, let inMs):
+            nextUp = (next, Date().addingTimeInterval(Double(inMs) / 1000))
         case .removed:
-            stayConnected = false
+            connection?.stop()
             memory.forget(code: code)
             screen = .ended("The host removed you from the party.")
         case .partyEnded:
-            stayConnected = false
+            connection?.stop()
             screen = .ended("The party is over. Thanks for playing!")
-        case .paused, .resumed, .paired, .hostState, .unknown:
+        case .resumed, .paired, .hostState, .unknown:
             // For host mode, or from a newer controller.
             break
         }

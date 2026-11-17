@@ -34,7 +34,8 @@ private func object(_ data: Data) throws -> NSObject {
             Issue.record("The example \(type) is not known")
         }
     }
-    #expect(messages.count == 29)
+    #expect(messages.count == 31)
+    #expect(messages[30] == .countdown(next: "Next question", inMs: 3000))
     #expect(messages.first == .welcome(player: 1, token: "0123456789abcdef", name: "Sam"))
     guard case .question(let view) = messages[8] else {
         Issue.record("No question: \(messages[8])")
@@ -56,6 +57,19 @@ private func object(_ data: Data) throws -> NSObject {
     #expect(board.rows[0].quizzes == [nil, QuizResult(score: 2400, rank: 1)])
     guard case .hostState(let state) = messages[23] else { return }
     #expect(state.phase == .lobby)
+    #expect(state.gameCode == "ABCD" && state.advanceInMs == nil && state.next == nil)
+    guard case .hostState(let waiting) = messages[24] else { return }
+    #expect(waiting.paused && waiting.autoAdvance.enabled && waiting.advanceInMs == 12_345)
+    #expect(waiting.next == "Show Standings")
+    guard case .question(_, let correct, let answered) = waiting.phase else {
+        Issue.record("No question: \(waiting.phase)")
+        return
+    }
+    #expect(correct == 0 && answered == [1])
+    guard case .hostState(let standings) = messages[26] else { return }
+    #expect(standings.phase == .standings([Standing(player: 1, name: "Sam", score: 2400, rank: 1, lastPoints: 850)]))
+    guard case .hostState(let setup) = messages[29] else { return }
+    #expect(setup.phase == .setup)
 }
 
 @Test func writesEveryClientMessageAsTheControllerReadsIt() throws {
@@ -74,6 +88,7 @@ private func object(_ data: Data) throws -> NSObject {
         .host(command: .resume),
         .host(command: .removePlayer(player: 2)),
         .host(command: .endParty),
+        .host(command: .setAutoAdvance(AutoAdvance(enabled: true, revealSecs: 5, standingsSecs: 30, countdownSecs: 3))),
     ]
     let expected = try examples("examples-client.json")
     #expect(messages.count == expected.count)
@@ -167,4 +182,69 @@ private func object(_ data: Data) throws -> NSObject {
     session.handle(messages[1])  // a wrong game code
     #expect(session.screen == .refused("That isn't this party's code."))
     #expect(memory.entry(code: "ABCD") == nil)
+}
+
+/// Keeps a host pairing in memory, for the tests.
+private final class MemoryTokens: HostTokenStore, @unchecked Sendable {
+    var pairing: HostPairing?
+    func load() -> HostPairing? { pairing }
+    func save(_ pairing: HostPairing) { self.pairing = pairing }
+    func forget() { pairing = nil }
+}
+
+@Test func readsHostLinks() throws {
+    let link = try #require(HostLink(scanned: "quizparty://host?host=192.168.1.20&port=8765&pair=ABCDEFGHJK"))
+    #expect(link == HostLink(address: PartyAddress(host: "192.168.1.20", port: 8765), pairingCode: "ABCDEFGHJK"))
+    #expect(HostLink(scanned: "quizparty://join?host=192.168.1.20&port=8765&code=ABCD") == nil)
+    #expect(JoinLink(scanned: "quizparty://host?host=192.168.1.20&port=8765&pair=ABCDEFGHJK") == nil)
+}
+
+@MainActor
+@Test func aHostSessionKeepsItsTokenAndTheState() throws {
+    let tokens = MemoryTokens()
+    let address = PartyAddress(host: "127.0.0.1", port: 1)
+    let session = HostSession(address: address, pairingCode: "ABCDEFGHJK", deviceName: "Test", tokens: tokens)
+    let messages = try examples("examples-server.json").map { try ServerMessage.decode($0) }
+    session.handle(.paired(token: "fedcba9876543210"))
+    #expect(tokens.pairing == HostPairing(address: address, token: "fedcba9876543210"))
+    session.handle(messages[24])  // waiting to move on
+    #expect(session.status == .connected)
+    #expect(session.state?.next == "Show Standings")
+    let wait = try #require(session.advanceAt).timeIntervalSinceNow
+    #expect(wait > 12 && wait <= 12.345)
+    // Refused once paired: the token is no good, so it is forgotten.
+    session.handle(.rejected(reason: .notAuthorised, message: "Not paired."))
+    #expect(session.status == .refused("Not paired."))
+    #expect(tokens.pairing == nil)
+}
+
+@MainActor
+@Test func aPausedPlayerCannotAnswer() throws {
+    let suite = "QuizPartyKitTests-\(UUID().uuidString)"
+    defer { UserDefaults().removePersistentDomain(forName: suite) }
+    let session = PlayerSession(
+        address: PartyAddress(host: "127.0.0.1", port: 1), code: "ABCD", name: "Sam", memory: JoinMemory(suite: suite))
+    let messages = try examples("examples-server.json").map { try ServerMessage.decode($0) }
+    session.handle(messages[0])
+    session.handle(messages[8])
+    session.handle(.paused)
+    #expect(session.paused && !session.canAnswer(at: Date()))
+    session.handle(.resumed)
+    session.handle(messages[8])
+    #expect(!session.paused && session.canAnswer(at: Date()))
+}
+
+@MainActor
+@Test func aPlayerSeesTheCountdownUntilThePartyMovesOn() throws {
+    let suite = "QuizPartyKitTests-\(UUID().uuidString)"
+    defer { UserDefaults().removePersistentDomain(forName: suite) }
+    let session = PlayerSession(
+        address: PartyAddress(host: "127.0.0.1", port: 1), code: "ABCD", name: "Sam", memory: JoinMemory(suite: suite))
+    let messages = try examples("examples-server.json").map { try ServerMessage.decode($0) }
+    session.handle(messages[12])  // the reveal
+    session.handle(messages[30])  // the countdown
+    let wait = try #require(session.nextUp).at.timeIntervalSinceNow
+    #expect(session.nextUp?.title == "Next question" && wait > 2.9 && wait <= 3)
+    session.handle(messages[15])  // the standings
+    #expect(session.nextUp == nil)
 }

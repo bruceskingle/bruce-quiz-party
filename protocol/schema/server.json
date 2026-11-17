@@ -219,6 +219,31 @@
       ]
     },
     {
+      "description": "The party will move on soon, by itself or as the host pressed Next: what comes next and when, for a countdown\nunder the reveal or the standings. Whatever the party shows next ends it.",
+      "type": "object",
+      "properties": {
+        "in_ms": {
+          "description": "How long until then.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "next": {
+          "description": "What comes next, e.g. \"Next question\" or \"Standings\".",
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "const": "countdown"
+        }
+      },
+      "required": [
+        "type",
+        "next",
+        "in_ms"
+      ]
+    },
+    {
       "description": "The clock has stopped.",
       "type": "object",
       "properties": {
@@ -304,9 +329,56 @@
     }
   ],
   "$defs": {
+    "AutoAdvance": {
+      "description": "Whether the party moves on by itself after each question, as if the host pressed Next: the reveal is shown for a\nwhile, then the standings, then the next question is asked. At the end of a quiz, it shows its leaderboard, then\nthe party's, and waits there for the host to choose the next quiz.",
+      "type": "object",
+      "properties": {
+        "countdown_secs": {
+          "description": "How long to count down after the host presses Next on the reveal, the standings or a quiz's leaderboard, in\nseconds, so that the players see what is coming; 0 moves on at once. This applies whether or not the party\nmoves on by itself.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "enabled": {
+          "description": "Whether it is on.",
+          "type": "boolean"
+        },
+        "reveal_secs": {
+          "description": "How long the reveal of each question's answer is shown, in seconds.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "standings_secs": {
+          "description": "How long the standings, or a quiz's leaderboard, are shown, in seconds.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "enabled",
+        "reveal_secs",
+        "standings_secs",
+        "countdown_secs"
+      ]
+    },
     "HostPhase": {
       "description": "What the party is doing, as a host phone sees it.",
       "oneOf": [
+        {
+          "description": "The party is being set up on the Mac: no one can join yet.",
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "const": "setup"
+            }
+          },
+          "required": [
+            "phase"
+          ]
+        },
         {
           "description": "Waiting for the host to choose the next quiz.",
           "type": "object",
@@ -377,10 +449,18 @@
             "phase": {
               "type": "string",
               "const": "standings"
+            },
+            "standings": {
+              "description": "Every player, in the order of their places.",
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Standing"
+              }
             }
           },
           "required": [
-            "phase"
+            "phase",
+            "standings"
           ]
         },
         {
@@ -390,14 +470,11 @@
             "phase": {
               "type": "string",
               "const": "leaderboard"
-            },
-            "sorted_by": {
-              "$ref": "#/$defs/LeaderboardKind"
             }
           },
+          "$ref": "#/$defs/Leaderboard",
           "required": [
-            "phase",
-            "sorted_by"
+            "phase"
           ]
         },
         {
@@ -419,6 +496,30 @@
       "description": "Everything a host phone shows.",
       "type": "object",
       "properties": {
+        "advance_in_ms": {
+          "description": "How long until the party moves on by itself, if it will, as it was when this was sent.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "auto_advance": {
+          "description": "Whether the party moves on by itself, and how long it waits.",
+          "$ref": "#/$defs/AutoAdvance"
+        },
+        "game_code": {
+          "description": "The party's game code, for the host to tell the players.",
+          "type": "string"
+        },
+        "next": {
+          "description": "What Next does now, e.g. \"Show Standings\", or none when there is nothing to move on to.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "paused": {
           "description": "Whether the clock is stopped.",
           "type": "boolean"
@@ -443,10 +544,12 @@
         }
       },
       "required": [
+        "game_code",
         "quizzes",
         "players",
         "phase",
-        "paused"
+        "paused",
+        "auto_advance"
       ]
     },
     "Leaderboard": {

@@ -4,8 +4,9 @@ A multiplayer quiz party game. A Mac runs the party and shows the big screen, on
 their phones, in the browser or the iOS app, and answer multiple-choice questions, scoring more the faster they answer.
 
 **Status:** early development. A party of several quizzes can be played with phones in the browser or the iOS app:
-questions, timed answers, the reveal, the standings, and each quiz's and the party's leaderboards. The host's phone
-controls are next. See [docs/Plan.md](docs/Plan.md) for the plan and its milestones.
+questions, timed answers, the reveal, the standings, and each quiz's and the party's leaderboards. The host can run it
+from the Mac or a paired iPhone, pause it, remove players, end it, or let it move on by itself. The quiz editor is
+next. See [docs/Plan.md](docs/Plan.md) for the plan and its milestones.
 
 ## Running
 
@@ -17,8 +18,10 @@ cd server
 dx serve --args="--quizzes ../quizzes"
 ```
 
-The Party page shows the lobby: phones on the same Wi-Fi scan its QR code, or go to the address under it and type the
-game code. Press Start beside a quiz to play it; after each question's reveal, the buttons at the bottom move on. The first time, macOS asks whether the app may accept incoming network connections: choose Allow, or the
+The Party page starts in setup: choose the party's quizzes and whether it moves on by itself, and pair your iPhone as
+a host by scanning the code shown there, if you like. Then press Start the Party for the lobby: phones on the same
+Wi-Fi scan its QR code, or go to the address under it and type the game code. Press Start beside a quiz to play it;
+the buttons at the bottom, or the host phone, move on, pause, or end the party. The first time, macOS asks whether the app may accept incoming network connections: choose Allow, or the
 phones cannot reach it.
 
 Without `--quizzes` it uses the quizzes folder in its data folder, `~/Library/Application Support/bruce-quiz-party/quizzes`.

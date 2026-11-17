@@ -1,5 +1,6 @@
-// Bruce's Quiz Party for iPhone: a player's phone in a party run by the Mac. It finds the party with Bonjour or its
-// QR code, joins, and shows what the controller sends; the game itself is all the controller's.
+// Bruce's Quiz Party for iPhone: a player's phone in a party run by the Mac, or a host's remote control for it. It
+// finds the party with Bonjour or its QR code, joins, and shows what the controller sends; the game itself is all the
+// controller's.
 
 import QuizPartyKit
 import SwiftUI
@@ -26,9 +27,11 @@ enum Theme {
     static let wrong = AnswerStyle.at(0).color
 }
 
-/// The join screen until the player joins, then the game; a quizparty:// link joins from anywhere.
+/// The join screen until the player joins, then the game, or the host's controls; a quizparty:// link joins or pairs
+/// from anywhere.
 struct RootView: View {
     @State private var session: PlayerSession?
+    @State private var hostSession: HostSession?
     /// Why the last join was refused, shown on the join screen.
     @State private var refusal: String?
     /// A party chosen by a link, for the join screen to fill in.
@@ -37,16 +40,21 @@ struct RootView: View {
     var body: some View {
         ZStack {
             Theme.background.ignoresSafeArea()
-            if let session {
+            if let hostSession {
+                HostView(session: hostSession) { leave() }
+            } else if let session {
                 PlayView(session: session) { leave() }
             } else {
-                JoinView(refusal: $refusal, link: $link) { join($0) }
+                JoinView(refusal: $refusal, link: $link, join: join, host: host)
             }
         }
         .onOpenURL { url in
             if let link = JoinLink(url: url) {
                 leave()
                 self.link = link
+            } else if let link = HostLink(url: url) {
+                leave()
+                host(HostSession(address: link.address, pairingCode: link.pairingCode, deviceName: deviceName))
             }
         }
         #if DEBUG
@@ -56,6 +64,9 @@ struct RootView: View {
                 if let text = UserDefaults.standard.string(forKey: "joinLink"), let link = JoinLink(scanned: text) {
                     self.link = link
                 }
+                if let text = UserDefaults.standard.string(forKey: "hostLink"), let link = HostLink(scanned: text) {
+                    host(HostSession(address: link.address, pairingCode: link.pairingCode, deviceName: deviceName))
+                }
             }
         #endif
         .onChange(of: session?.screen) { _, screen in
@@ -64,10 +75,16 @@ struct RootView: View {
                 leave()
             }
         }
-        .onChange(of: session == nil, initial: true) { _, idle in
-            // Keep the screen on while playing, so that it is awake when the next question comes.
+        .onChange(of: session == nil && hostSession == nil, initial: true) { _, idle in
+            // Keep the screen on while playing or hosting, so that it is awake when the next question comes.
             UIApplication.shared.isIdleTimerDisabled = !idle
         }
+    }
+
+    private func host(_ session: HostSession) {
+        refusal = nil
+        session.start()
+        hostSession = session
     }
 
     private func join(_ session: PlayerSession) {
@@ -79,5 +96,16 @@ struct RootView: View {
     private func leave() {
         session?.leave()
         session = nil
+        hostSession?.leave()
+        hostSession = nil
     }
+}
+
+/// The name a host phone gives the Mac when it pairs, to list the paired phones: the player's name, if they have given
+/// one, as iOS gives apps only "iPhone" for the phone's own name.
+@MainActor
+var deviceName: String {
+    let name = JoinMemory().lastName
+    let model = UIDevice.current.model
+    return name.isEmpty ? model : "\(name)'s \(model)"
 }

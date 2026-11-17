@@ -5,8 +5,9 @@
 //! its Swift types are checked against what this side really sends and expects.
 
 use bruce_quiz_protocol::{
-    ClientMessage, HostCommand, HostPhase, HostState, Leaderboard, LeaderboardKind, LeaderboardRow, PlayerResult,
-    PlayerSummary, QuestionRef, QuestionView, QuizResult, QuizSummary, RejectReason, Reveal, ServerMessage, Standing,
+    AutoAdvance, ClientMessage, HostCommand, HostPhase, HostState, Leaderboard, LeaderboardKind, LeaderboardRow,
+    PlayerResult, PlayerSummary, QuestionRef, QuestionView, QuizResult, QuizSummary, RejectReason, Reveal,
+    ServerMessage, Standing,
 };
 use serde::Serialize;
 
@@ -121,6 +122,16 @@ fn example_files_are_up_to_date() {
         ClientMessage::Host {
             command: HostCommand::EndParty,
         },
+        ClientMessage::Host {
+            command: HostCommand::SetAutoAdvance {
+                auto_advance: AutoAdvance {
+                    enabled: true,
+                    reveal_secs: 5,
+                    standings_secs: 30,
+                    countdown_secs: 3,
+                },
+            },
+        },
     ];
     let server = vec![
         ServerMessage::Welcome {
@@ -226,22 +237,46 @@ fn example_files_are_up_to_date() {
             answered: vec![1],
         },
         HostPhase::Reveal(reveal.clone()),
-        HostPhase::Standings,
-        HostPhase::Leaderboard {
-            sorted_by: LeaderboardKind::Party,
+        HostPhase::Standings {
+            standings: vec![Standing {
+                player: 1,
+                name: "Sam".into(),
+                score: 2400,
+                rank: 1,
+                last_points: 850,
+            }],
         },
+        HostPhase::Leaderboard(Leaderboard {
+            sorted_by: LeaderboardKind::Party,
+            quizzes: vec!["Science Basics".into()],
+            rows: Vec::new(),
+        }),
         HostPhase::Ended,
+        HostPhase::Setup,
     ];
     let server: Vec<ServerMessage> = server
         .into_iter()
-        .chain(phases.into_iter().map(|phase| {
+        .chain(phases.into_iter().enumerate().map(|(index, phase)| {
+            // Every other one waiting to move on by itself, so that the optional fields are both there and not.
+            let waiting = index % 2 == 1;
             ServerMessage::HostState(HostState {
+                game_code: "ABCD".into(),
                 quizzes: quizzes.clone(),
                 players: players.clone(),
                 phase,
-                paused: false,
+                paused: waiting,
+                auto_advance: AutoAdvance {
+                    enabled: waiting,
+                    ..AutoAdvance::default()
+                },
+                advance_in_ms: waiting.then_some(12_345),
+                next: waiting.then(|| "Show Standings".into()),
             })
         }))
+        .chain([ServerMessage::Countdown {
+            next: "Next question".into(),
+            in_ms: 3000,
+        }])
         .collect();
     check("examples-client.json", client);
     check("examples-server.json", server);

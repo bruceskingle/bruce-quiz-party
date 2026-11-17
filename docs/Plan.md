@@ -17,6 +17,12 @@ questions on their phones, scoring more the faster they answer.
 - **Signing with the paid account** (16 Nov 2026): the iOS app is signed with Bruce's paid Apple Developer team, not
   the free Personal Team, so installs last a year rather than 7 days. The team is set only in the git-ignored
   `ios/Signing.xcconfig`; the iOS bundle ID is the Mac app's, `org.skingle.bruce-quiz-party`.
+- **Auto-advance** (17 Nov 2026): an option, off by default, for the party to move on by itself: the reveal for a few
+  seconds, then the standings for a time set by the host (30 seconds by default), then the next question. It stops at
+  the party's leaderboard for the host to choose the next quiz. The big screen and the phones count down to moving on,
+  and Next pressed on the reveal or the standings counts down too, 3 seconds by default, set in setup.
+- **Host tokens** (17 Nov 2026): the Mac keeps host phones' tokens in memory, for as long as it runs; a new party keeps
+  the phones paired. The phone keeps its token in the Keychain.
 - **Names**: the app is "Bruce's Quiz Party", the crates `bruce-quiz-*`, the Bonjour service `_quizparty._tcp`.
 
 ## Projects
@@ -117,8 +123,9 @@ diamond, yellow circle, green square, purple star, orange hexagon. See [Protocol
   Personal Team), its settings only in the git-ignored `ios/Signing.xcconfig`; most guests will use the browser
   client. The Mac app is ad-hoc signed
   (`codesign --sign -`).
-- Signing is one clearly separate build step per app, so that moving to a paid account (TestFlight for iOS, Developer
-  ID and notarisation for the Mac) needs no code changes; the README says how.
+- Signing's settings are only in a git-ignored file per app, so that changing team, or moving to TestFlight for iOS
+  or Developer ID and notarisation for the Mac, changes no checked-in file; the README says how. Where the tools sign
+  as part of the build, as Xcode does for iOS, it need not be a separate step (17 Nov 2026).
 - One command each to build and run the Mac app, and to build and install the iOS app on a connected iPhone.
 
 ## Milestones

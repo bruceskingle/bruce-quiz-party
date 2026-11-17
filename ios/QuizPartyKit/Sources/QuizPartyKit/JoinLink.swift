@@ -91,3 +91,35 @@ public struct JoinLink: Equatable, Sendable {
         self.init(url: url)
     }
 }
+
+/// What the host pairing QR code says, shown on the Mac only while the party is set up:
+/// `quizparty://host?host=<mac>&port=<port>&pair=<code>`.
+public struct HostLink: Equatable, Sendable {
+    public var address: PartyAddress
+    /// The one-time pairing code.
+    public var pairingCode: String
+
+    public init(address: PartyAddress, pairingCode: String) {
+        self.address = address
+        self.pairingCode = pairingCode
+    }
+
+    public init?(url: URL) {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+            components.scheme?.lowercased() == urlScheme, components.host == "host"
+        else { return nil }
+        let query = Dictionary(
+            (components.queryItems ?? []).map { ($0.name, $0.value ?? "") }, uniquingKeysWith: { first, _ in first })
+        guard let host = query["host"], !host.isEmpty, let port = query["port"].flatMap({ UInt16($0) }),
+            let code = query["pair"], !code.isEmpty
+        else { return nil }
+        address = PartyAddress(host: host, port: port)
+        pairingCode = code
+    }
+
+    /// Reads the text of a scanned QR code.
+    public init?(scanned text: String) {
+        guard let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
+        self.init(url: url)
+    }
+}

@@ -1,5 +1,6 @@
 // Joining a party: choosing it from those Bonjour finds, scanning its QR code or typing its address, then the game
-// code and a name.
+// code and a name. Or controlling it as a host: scanning the pairing QR code the Mac shows in setup, or reconnecting
+// once paired.
 
 import QuizPartyKit
 import SwiftUI
@@ -12,6 +13,8 @@ struct JoinView: View {
     @Binding var link: JoinLink?
     /// Joins with a new session.
     let join: (PlayerSession) -> Void
+    /// Controls the party with a new host session.
+    let host: (HostSession) -> Void
 
     @State private var browser = PartyBrowser()
     @State private var address: PartyAddress?
@@ -70,6 +73,8 @@ struct JoinView: View {
                 scanning = false
                 if let link = JoinLink(scanned: text) {
                     use(link)
+                } else if let link = HostLink(scanned: text) {
+                    host(HostSession(address: link.address, pairingCode: link.pairingCode, deviceName: deviceName))
                 } else {
                     problem = "That QR code isn't a party's. Scan the one on the big screen."
                 }
@@ -130,6 +135,21 @@ struct JoinView: View {
             Text("Or Type the Address")
         } footer: {
             Text("The address is under the QR code on the big screen.")
+        }
+        Section {
+            if let pairing = KeychainHostTokens().load() {
+                Button {
+                    host(HostSession(address: pairing.address, pairingCode: nil, deviceName: deviceName))
+                } label: {
+                    Label("Control the Party at \(pairing.address.host)", systemImage: "av.remote")
+                }
+            }
+        } header: {
+            Text("Hosting")
+        } footer: {
+            Text(
+                "To control the party from this phone, scan the host code the Mac shows while the party is being set up."
+            )
         }
     }
 

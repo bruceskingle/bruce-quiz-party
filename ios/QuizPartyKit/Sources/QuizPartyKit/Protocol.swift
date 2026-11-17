@@ -100,9 +100,10 @@ public enum HostCommand: Encodable, Equatable, Sendable {
     case resume
     case removePlayer(player: PlayerID)
     case endParty
+    case setAutoAdvance(AutoAdvance)
 
     private enum Keys: String, CodingKey {
-        case command, quiz, player
+        case command, quiz, player, autoAdvance
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -119,7 +120,29 @@ public enum HostCommand: Encodable, Equatable, Sendable {
             try container.encode("remove_player", forKey: .command)
             try container.encode(player, forKey: .player)
         case .endParty: try container.encode("end_party", forKey: .command)
+        case .setAutoAdvance(let autoAdvance):
+            try container.encode("set_auto_advance", forKey: .command)
+            try container.encode(autoAdvance, forKey: .autoAdvance)
         }
+    }
+}
+
+/// Whether the party moves on by itself after each question: the reveal for a while, then the standings, then the
+/// next question.
+public struct AutoAdvance: Codable, Equatable, Sendable {
+    public var enabled: Bool
+    /// How long the reveal is shown, in seconds.
+    public var revealSecs: UInt32
+    /// How long the standings, or a quiz's leaderboard, are shown, in seconds.
+    public var standingsSecs: UInt32
+    /// How long to count down after the host presses Next on the reveal or the standings, in seconds; 0 is at once.
+    public var countdownSecs: UInt32
+
+    public init(enabled: Bool, revealSecs: UInt32, standingsSecs: UInt32, countdownSecs: UInt32) {
+        self.enabled = enabled
+        self.revealSecs = revealSecs
+        self.standingsSecs = standingsSecs
+        self.countdownSecs = countdownSecs
     }
 }
 
@@ -145,6 +168,8 @@ public enum ServerMessage: Decodable, Equatable, Sendable {
     case standings([Standing])
     /// A leaderboard at the end of a quiz, the quiz's and then the party's.
     case leaderboard(Leaderboard)
+    /// The party will move on soon: what comes next, e.g. "Next question", and how long until then.
+    case countdown(next: String, inMs: UInt32)
     case paused
     case resumed
     /// The host removed this player.
@@ -158,7 +183,8 @@ public enum ServerMessage: Decodable, Equatable, Sendable {
     case unknown(type: String)
 
     private enum Keys: String, CodingKey {
-        case type, player, token, name, reason, message, nonce, players, question, choice, answered, standings
+        case type, player, token, name, reason, message, nonce, players, question, choice, answered, standings, next
+        case inMs
     }
 
     public init(from decoder: Decoder) throws {
@@ -189,6 +215,10 @@ public enum ServerMessage: Decodable, Equatable, Sendable {
         case "reveal": self = .reveal(try Reveal(from: decoder))
         case "standings": self = .standings(try container.decode([Standing].self, forKey: .standings))
         case "leaderboard": self = .leaderboard(try Leaderboard(from: decoder))
+        case "countdown":
+            self = .countdown(
+                next: try container.decode(String.self, forKey: .next),
+                inMs: try container.decode(UInt32.self, forKey: .inMs))
         case "paused": self = .paused
         case "resumed": self = .resumed
         case "removed": self = .removed
@@ -326,10 +356,16 @@ public struct QuizResult: Decodable, Equatable, Sendable {
 
 /// Everything a host phone shows.
 public struct HostState: Decodable, Equatable, Sendable {
+    public var gameCode: String
     public var quizzes: [QuizSummary]
     public var players: [PlayerSummary]
     public var phase: HostPhase
     public var paused: Bool
+    public var autoAdvance: AutoAdvance
+    /// How long until the party moves on by itself, if it will, when this was sent.
+    public var advanceInMs: UInt32?
+    /// What Next does now, e.g. "Show Standings", or nil when there is nothing to move on to.
+    public var next: String?
 }
 
 /// One of the party's quizzes, to choose the next from.
@@ -341,20 +377,23 @@ public struct QuizSummary: Decodable, Equatable, Sendable {
 
 /// What the party is doing, as a host phone sees it.
 public enum HostPhase: Decodable, Equatable, Sendable {
+    /// Being set up on the Mac: no one can join yet.
+    case setup
     case lobby
     case question(view: QuestionView, correct: UInt8, answered: [PlayerID])
     case reveal(Reveal)
-    case standings
-    case leaderboard(sortedBy: LeaderboardKind)
+    case standings([Standing])
+    case leaderboard(Leaderboard)
     case ended
 
     private enum Keys: String, CodingKey {
-        case phase, view, correct, answered, sortedBy
+        case phase, view, correct, answered, standings
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: Keys.self)
         switch try container.decode(String.self, forKey: .phase) {
+        case "setup": self = .setup
         case "lobby": self = .lobby
         case "question":
             self = .question(
@@ -362,8 +401,8 @@ public enum HostPhase: Decodable, Equatable, Sendable {
                 correct: try container.decode(UInt8.self, forKey: .correct),
                 answered: try container.decode([PlayerID].self, forKey: .answered))
         case "reveal": self = .reveal(try Reveal(from: decoder))
-        case "standings": self = .standings
-        case "leaderboard": self = .leaderboard(sortedBy: try container.decode(LeaderboardKind.self, forKey: .sortedBy))
+        case "standings": self = .standings(try container.decode([Standing].self, forKey: .standings))
+        case "leaderboard": self = .leaderboard(try Leaderboard(from: decoder))
         case "ended": self = .ended
         case let phase:
             throw DecodingError.dataCorruptedError(

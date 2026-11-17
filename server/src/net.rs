@@ -6,7 +6,7 @@ use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
     path::PathBuf,
-    sync::{Arc, Mutex, MutexGuard, OnceLock},
+    sync::{Arc, Mutex, MutexGuard},
     time::{Duration, Instant},
 };
 
@@ -21,7 +21,9 @@ use axum::{
     routing::get,
 };
 use futures_util::{SinkExt, StreamExt};
-use protocol::{ClientMessage, PROTOCOL_VERSION, PlayerId, RejectReason, ServerMessage, WEBSOCKET_PATH};
+use protocol::{
+    AutoAdvance, ClientMessage, HostCommand, PROTOCOL_VERSION, PlayerId, RejectReason, ServerMessage, WEBSOCKET_PATH,
+};
 use tokio::sync::{mpsc, watch};
 
 use crate::{
@@ -35,6 +37,9 @@ pub const DEFAULT_PORT: u16 = 8765;
 
 /// How often each phone is pinged, to keep its round trip up to date.
 const PING_INTERVAL: Duration = Duration::from_secs(2);
+
+/// How often the party's clock is checked, for closing questions at their deadline and moving on by itself.
+const TICK_INTERVAL: Duration = Duration::from_millis(100);
 
 /// How much of each new round trip measured goes into the estimate: a moving average, so that one slow ping does not
 /// change a player's timing much.
@@ -54,6 +59,8 @@ struct Conn {
     sender: mpsc::UnboundedSender<ServerMessage>,
     /// The player the connection has joined as, once it has.
     player: Option<PlayerId>,
+    /// Whether the connection is a paired host phone's, which is sent the host's view and may control the party.
+    host: bool,
     /// The ping sent and not yet answered, and when it was sent.
     ping: Option<(u64, Instant)>,
 }
@@ -113,7 +120,9 @@ impl Hub {
     /// who joins or rejoins.
     fn phase_messages(&self, player: PlayerId, now: Instant) -> Vec<ServerMessage> {
         let party = &self.party;
-        match party.phase {
+        let mut messages = match party.phase {
+            Phase::Setup => Vec::new(),
+            Phase::Ended => vec![ServerMessage::PartyEnded],
             Phase::Lobby => vec![ServerMessage::Lobby { players: party.lobby() }],
             Phase::Question => {
                 let mut messages: Vec<ServerMessage> = party
@@ -151,11 +160,48 @@ impl Hub {
                 .map(ServerMessage::Leaderboard)
                 .into_iter()
                 .collect(),
+        };
+        if party.paused_at.is_some() {
+            messages.push(ServerMessage::Paused);
+        }
+        messages.extend(self.countdown(now));
+        messages
+    }
+
+    /// Sends every host phone the party as a host sees it.
+    fn broadcast_hosts(&self, now: Instant) {
+        let mut state = None;
+        for conn in self.conns.values().filter(|conn| conn.host) {
+            let state = state.get_or_insert_with(|| ServerMessage::HostState(self.party.host_state(now)));
+            let _ = conn.sender.send(state.clone());
         }
     }
 
+    /// Closes every connection which has joined as a player, after a message, e.g. when the party is over.
+    fn close_players(&mut self, message: Option<ServerMessage>) {
+        self.conns.retain(|_, conn| {
+            if conn.player.is_none() {
+                return true;
+            }
+            if let Some(message) = &message {
+                let _ = conn.sender.send(message.clone());
+            }
+            false
+        });
+    }
+
+    /// The countdown to the party moving on, if it is counting down.
+    fn countdown(&self, now: Instant) -> Option<ServerMessage> {
+        let at = self.party.advance_at()?;
+        Some(ServerMessage::Countdown {
+            next: self.party.countdown_title()?.to_string(),
+            in_ms: at.saturating_duration_since(now).as_millis() as u32,
+        })
+    }
+
     /// Sends every player what their phone shows of the party's phase, when it changes.
-    fn broadcast_phase(&self, now: Instant) {
+    fn broadcast_phase(&mut self, now: Instant) {
+        self.party.note_shown(now);
         for conn in self.conns.values() {
             if let Some(player) = conn.player {
                 for message in self.phase_messages(player, now) {
@@ -182,8 +228,6 @@ pub struct Shared {
     hub: Mutex<Hub>,
     /// Counts the party's changes, for the window to show them.
     changes: watch::Sender<u64>,
-    /// The server's runtime, for the timers which close questions, set when it starts serving.
-    runtime: OnceLock<tokio::runtime::Handle>,
 }
 
 impl Shared {
@@ -193,8 +237,9 @@ impl Shared {
         self.hub.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    /// Tells the window the party has changed.
+    /// Tells the window and the host phones the party has changed. The hub must not be locked.
     fn changed(&self) {
+        self.hub().broadcast_hosts(Instant::now());
         self.changes.send_modify(|count| *count += 1);
     }
 
@@ -203,61 +248,161 @@ impl Shared {
         self.changes.subscribe()
     }
 
+    /// Ends setup with the quizzes chosen from the library, so that players can join.
+    pub fn start_party(&self, chosen: &[usize]) -> Result<(), String> {
+        self.hub().party.start_party(chosen)?;
+        self.changed();
+        Ok(())
+    }
+
     /// Starts one of the party's quizzes, for the host.
-    pub fn start_quiz(self: &Arc<Self>, quiz: usize) -> Result<(), NotNow> {
+    pub fn start_quiz(&self, quiz: usize) -> Result<(), NotNow> {
         self.host(|party, now| party.start_quiz(quiz, now))
     }
 
     /// Moves the party on, for the host.
-    pub fn next(self: &Arc<Self>) {
+    pub fn next(&self) {
         let _ = self.host(|party, now| {
-            party.next(now);
+            party.request_next(now);
             Ok(())
         });
     }
 
     /// Skips the question being asked, for the host.
-    pub fn skip(self: &Arc<Self>) {
+    pub fn skip(&self) {
         let _ = self.host(|party, now| {
             party.skip(now);
             Ok(())
         });
     }
 
-    /// Does a host's command, then tells the players and the window what changed, and if it asked a question, starts
-    /// the timer which closes it.
-    fn host(self: &Arc<Self>, command: impl FnOnce(&mut Party, Instant) -> Result<(), NotNow>) -> Result<(), NotNow> {
+    /// Stops the clock, for the host.
+    pub fn pause(&self) {
+        let _ = self.host(|party, now| {
+            party.pause(now);
+            Ok(())
+        });
+    }
+
+    /// Starts the clock again, for the host.
+    pub fn resume(&self) {
+        let _ = self.host(|party, now| {
+            party.resume(now);
+            Ok(())
+        });
+    }
+
+    /// Turns moving on by itself on or off, for the host.
+    pub fn set_auto_advance(&self, auto_advance: AutoAdvance) {
         let now = Instant::now();
         let mut hub = self.hub();
-        command(&mut hub.party, now)?;
-        hub.broadcast_phase(now);
-        let timer = match (&hub.party.phase, &hub.party.round) {
-            (Phase::Question, Some(round)) => Some((round.number, round.deadline)),
-            _ => None,
-        };
-        drop(hub);
-        if let Some((number, deadline)) = timer {
-            self.close_at(number, deadline);
+        hub.party.auto_advance = auto_advance;
+        // The players' countdown starts, stops or changes with it.
+        if hub.party.countdown_title().is_some() {
+            hub.broadcast_phase(now);
         }
+        drop(hub);
+        self.changed();
+    }
+
+    /// Removes a player, for the host: their phone is told and its connection closed.
+    pub fn remove_player(&self, player: PlayerId) {
+        let now = Instant::now();
+        let mut hub = self.hub();
+        if !hub.party.remove_player(player) {
+            return;
+        }
+        let removed: Vec<ConnId> = hub
+            .conns
+            .iter()
+            .filter(|(_, conn)| conn.player == Some(player))
+            .map(|(id, _)| *id)
+            .collect();
+        for id in removed {
+            hub.send(id, ServerMessage::Removed);
+            hub.conns.remove(&id);
+        }
+        match hub.party.phase {
+            Phase::Lobby => hub.broadcast_lobby(),
+            Phase::Question => {
+                if !hub.close_if_all_answered(now) {
+                    hub.broadcast_answer_count();
+                }
+            }
+            _ => {}
+        }
+        drop(hub);
+        self.changed();
+    }
+
+    /// Ends the party, for the host: the players are told.
+    pub fn end_party(&self) {
+        let _ = self.host(|party, _| {
+            party.end_party();
+            Ok(())
+        });
+    }
+
+    /// Starts a new party after one has ended, in setup with a new game code: the last party's players are closed.
+    pub fn new_party(&self) {
+        let mut hub = self.hub();
+        hub.party.new_party();
+        hub.close_players(Some(ServerMessage::PartyEnded));
+        drop(hub);
+        self.changed();
+    }
+
+    /// Does a command from a host phone.
+    pub fn command(&self, command: HostCommand) {
+        match command {
+            HostCommand::StartQuiz { quiz } => {
+                let _ = self.start_quiz(quiz as usize);
+            }
+            HostCommand::Next => self.next(),
+            HostCommand::Skip => self.skip(),
+            HostCommand::Pause => self.pause(),
+            HostCommand::Resume => self.resume(),
+            HostCommand::RemovePlayer { player } => self.remove_player(player),
+            HostCommand::EndParty => self.end_party(),
+            HostCommand::SetAutoAdvance { auto_advance } => self.set_auto_advance(auto_advance),
+        }
+    }
+
+    /// Does a host's command, then tells the players, the host phones and the window what changed; the phones are
+    /// told when the clock stops or starts too.
+    fn host(&self, command: impl FnOnce(&mut Party, Instant) -> Result<(), NotNow>) -> Result<(), NotNow> {
+        let now = Instant::now();
+        let mut hub = self.hub();
+        let was_paused = hub.party.paused_at.is_some();
+        let was_showing = (hub.party.phase, hub.party.rounds_asked);
+        command(&mut hub.party, now)?;
+        let paused = hub.party.paused_at.is_some();
+        if paused && !was_paused {
+            hub.broadcast(&ServerMessage::Paused);
+        } else if was_paused && !paused {
+            // The question, if one is being asked, is sent again with the time it has left.
+            hub.broadcast(&ServerMessage::Resumed);
+            hub.broadcast_phase(now);
+        } else if (hub.party.phase, hub.party.rounds_asked) != was_showing {
+            hub.broadcast_phase(now);
+        } else if let Some(countdown) = hub.countdown(now) {
+            // Next was pressed and the party is counting down: what is shown stays.
+            hub.broadcast(&countdown);
+        }
+        drop(hub);
         self.changed();
         Ok(())
     }
 
-    /// Closes a question at its deadline, if it is still being asked then.
-    fn close_at(self: &Arc<Self>, number: u64, deadline: Instant) {
-        let Some(runtime) = self.runtime.get() else { return };
-        let shared = self.clone();
-        runtime.spawn(async move {
-            tokio::time::sleep_until(deadline.into()).await;
-            let mut hub = shared.hub();
-            let current = hub.party.round.as_ref().map(|round| round.number);
-            if hub.party.phase == Phase::Question && current == Some(number) {
-                hub.party.close_question();
-                hub.broadcast_phase(Instant::now());
-                drop(hub);
-                shared.changed();
-            }
-        });
+    /// Does what is due as time passes, see [`Party::tick`], and tells everyone if anything changed.
+    fn tick(&self) {
+        let now = Instant::now();
+        let mut hub = self.hub();
+        if hub.party.tick(now) {
+            hub.broadcast_phase(now);
+            drop(hub);
+            self.changed();
+        }
     }
 }
 
@@ -279,6 +424,18 @@ impl Server {
         let code = self.shared.hub().party.code.clone();
         let host = local_address().unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST));
         format!("http://{host}:{}/?code={code}", self.port)
+    }
+
+    /// The URL the host pairing QR code holds, shown only in setup: it opens the iOS app, which pairs as a host with
+    /// the one-time pairing code.
+    pub fn pairing_url(&self) -> String {
+        let code = self.shared.hub().party.pairing_code.clone();
+        let host = local_address().unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST));
+        format!(
+            "{}://host?host={host}&port={}&pair={code}",
+            protocol::URL_SCHEME,
+            self.port
+        )
     }
 }
 
@@ -323,13 +480,19 @@ pub fn new_shared(party: Party) -> Arc<Shared> {
             next_nonce: 1,
         }),
         changes: watch::channel(0).0,
-        runtime: OnceLock::new(),
     })
 }
 
 /// Serves a party on a listener until it fails, e.g. in the tests on a port of their own.
 pub async fn serve(listener: tokio::net::TcpListener, shared: Arc<Shared>) -> std::io::Result<()> {
-    let _ = shared.runtime.set(tokio::runtime::Handle::current());
+    let ticker = shared.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(TICK_INTERVAL);
+        loop {
+            interval.tick().await;
+            ticker.tick();
+        }
+    });
     let app = Router::new()
         .route("/", get(|| async { asset("text/html; charset=utf-8", INDEX_HTML) }))
         .route(
@@ -392,6 +555,7 @@ async fn connection(socket: WebSocket, shared: Arc<Shared>) {
             Conn {
                 sender,
                 player: None,
+                host: false,
                 ping: None,
             },
         );
@@ -571,9 +735,72 @@ fn handle(shared: &Shared, id: ConnId, message: ClientMessage, now: Instant) -> 
             }
             true
         }
-        // Pairing and controlling as a host come in a later milestone.
-        ClientMessage::PairHost { .. } | ClientMessage::HostConnect { .. } | ClientMessage::Host { .. } => true,
+        ClientMessage::PairHost {
+            protocol,
+            pairing_code,
+            device_name,
+        } => {
+            if protocol != PROTOCOL_VERSION {
+                reject(
+                    &mut hub,
+                    id,
+                    RejectReason::WrongProtocol,
+                    "Please update the app to control this party.",
+                );
+                return false;
+            }
+            match hub.party.pair(&pairing_code, &device_name) {
+                Ok(token) => {
+                    hub.send(id, ServerMessage::Paired { token });
+                    become_host(shared, hub, id);
+                    true
+                }
+                Err(refused) => {
+                    reject(&mut hub, id, refused.reason, &refused.message);
+                    false
+                }
+            }
+        }
+        ClientMessage::HostConnect { protocol, token } => {
+            if protocol != PROTOCOL_VERSION {
+                reject(
+                    &mut hub,
+                    id,
+                    RejectReason::WrongProtocol,
+                    "Please update the app to control this party.",
+                );
+                return false;
+            }
+            if !hub.party.is_host(&token) {
+                reject(
+                    &mut hub,
+                    id,
+                    RejectReason::NotAuthorised,
+                    "This phone isn't paired with this party. Pair it again while the party is set up on the Mac.",
+                );
+                return false;
+            }
+            become_host(shared, hub, id);
+            true
+        }
+        ClientMessage::Host { command } => {
+            // Only a paired host phone's commands count.
+            if hub.conns.get(&id).is_some_and(|conn| conn.host) {
+                drop(hub);
+                shared.command(command);
+            }
+            true
+        }
     }
+}
+
+/// Makes a connection a host phone's, and sends it the party as a host sees it.
+fn become_host(shared: &Shared, mut hub: MutexGuard<'_, Hub>, id: ConnId) {
+    if let Some(conn) = hub.conns.get_mut(&id) {
+        conn.host = true;
+    }
+    drop(hub);
+    shared.changed();
 }
 
 /// Refuses a connection: tells it why, then closes it once that is sent, by dropping its sender.

@@ -21,7 +21,8 @@ Each project can be opened on its own in VS Code (and the iOS app in Xcode).
   the game's state and rules alone, with the time passed in, tested without a network; `src/big_screen.rs` is what
   the Mac and the TV show; `src/net.rs` is the web server and WebSocket (axum and Tokio, on a thread of its own), on
   port 8765 if free; `src/bonjour.rs` advertises it through macOS's own mDNS responder; `tests/join.rs` and
-  `tests/game.rs` play the protocol over real sockets; `examples/headless.rs` runs a party without its window.
+  `tests/game.rs` and `tests/host.rs` play the protocol over real sockets; `examples/headless.rs` runs a party
+  without its window, and with `--setup`, waits in setup for a host phone to pair.
 - `web/`: the browser client, plain HTML, CSS and JavaScript with no build step, built into the controller with
   `include_str!`, so the controller must be rebuilt to serve a change.
 - `quizzes/`: sample quizzes, each a folder with a `quiz.md` and its images.
@@ -49,7 +50,9 @@ to crates.io, unlike Bruce's other libraries.
   simulator with `xcrun simctl boot` (it stays headless), install the Debug build, and launch it with
   `-autoJoin YES -quizparty:name Robo -joinLink "quizparty://join?host=127.0.0.1&port=8765&code=ABCD"`. Screenshots
   of the simulator with `xcrun simctl io <id> screenshot` are fine, as they show only the simulated phone. Shut it
-  down afterwards.
+  down afterwards. For host mode, run the headless party with `-- quizzes --setup` and launch a second simulator with
+  `-hostLink` and the pairing link it prints, its host changed to 127.0.0.1. Bruce's own controller may hold port
+  8765, so use the port the headless party prints, and leave his running.
 - Run `cargo fmt` after a change (`rustfmt.toml`, `max_width = 120`).
 - `cargo deny check` should pass: see the licences rule in the README and `deny.toml`.
 - Don't take screenshots of Bruce's screen or drive apps with `osascript` to check a page: ask Bruce to look.
@@ -69,5 +72,7 @@ to crates.io, unlike Bruce's other libraries.
   freely licensed images from Wikimedia Commons, never non-free or fair-use ones.
 - **Errors** are formatted with `{error:#}` on an `anyhow::Error`, their chain of causes, never `{error:?}`.
 - **Comments** are doc comments in full sentences, saying what a thing is for and why.
-- **Signing** is one separate build step per app, so that moving from the free Personal Team and ad-hoc signing to a
-  paid Apple account needs no code changes.
+- **Signing**'s settings, the team and identities, are only in a git-ignored file per app, e.g.
+  `ios/Signing.xcconfig`, so that changing team, or moving between the free Personal Team or ad-hoc signing and a paid
+  account, changes no checked-in file. Where the tools sign as part of the build, as Xcode does for iOS, that is
+  enough; it need not be a separate step.

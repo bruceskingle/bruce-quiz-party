@@ -226,6 +226,7 @@
   },
   {
     "type": "host_state",
+    "game_code": "ABCD",
     "quizzes": [
       {
         "title": "Around the World",
@@ -248,10 +249,17 @@
     "phase": {
       "phase": "lobby"
     },
-    "paused": false
+    "paused": false,
+    "auto_advance": {
+      "enabled": false,
+      "reveal_secs": 5,
+      "standings_secs": 30,
+      "countdown_secs": 3
+    }
   },
   {
     "type": "host_state",
+    "game_code": "ABCD",
     "quizzes": [
       {
         "title": "Around the World",
@@ -298,10 +306,19 @@
         1
       ]
     },
-    "paused": false
+    "paused": true,
+    "auto_advance": {
+      "enabled": true,
+      "reveal_secs": 5,
+      "standings_secs": 30,
+      "countdown_secs": 3
+    },
+    "advance_in_ms": 12345,
+    "next": "Show Standings"
   },
   {
     "type": "host_state",
+    "game_code": "ABCD",
     "quizzes": [
       {
         "title": "Around the World",
@@ -342,10 +359,17 @@
         "quiz_rank": 2
       }
     },
-    "paused": false
+    "paused": false,
+    "auto_advance": {
+      "enabled": false,
+      "reveal_secs": 5,
+      "standings_secs": 30,
+      "countdown_secs": 3
+    }
   },
   {
     "type": "host_state",
+    "game_code": "ABCD",
     "quizzes": [
       {
         "title": "Around the World",
@@ -366,12 +390,30 @@
       }
     ],
     "phase": {
-      "phase": "standings"
+      "phase": "standings",
+      "standings": [
+        {
+          "player": 1,
+          "name": "Sam",
+          "score": 2400,
+          "rank": 1,
+          "last_points": 850
+        }
+      ]
     },
-    "paused": false
+    "paused": true,
+    "auto_advance": {
+      "enabled": true,
+      "reveal_secs": 5,
+      "standings_secs": 30,
+      "countdown_secs": 3
+    },
+    "advance_in_ms": 12345,
+    "next": "Show Standings"
   },
   {
     "type": "host_state",
+    "game_code": "ABCD",
     "quizzes": [
       {
         "title": "Around the World",
@@ -395,12 +437,23 @@
       "phase": "leaderboard",
       "sorted_by": {
         "kind": "party"
-      }
+      },
+      "quizzes": [
+        "Science Basics"
+      ],
+      "rows": []
     },
-    "paused": false
+    "paused": false,
+    "auto_advance": {
+      "enabled": false,
+      "reveal_secs": 5,
+      "standings_secs": 30,
+      "countdown_secs": 3
+    }
   },
   {
     "type": "host_state",
+    "game_code": "ABCD",
     "quizzes": [
       {
         "title": "Around the World",
@@ -423,6 +476,52 @@
     "phase": {
       "phase": "ended"
     },
-    "paused": false
+    "paused": true,
+    "auto_advance": {
+      "enabled": true,
+      "reveal_secs": 5,
+      "standings_secs": 30,
+      "countdown_secs": 3
+    },
+    "advance_in_ms": 12345,
+    "next": "Show Standings"
+  },
+  {
+    "type": "host_state",
+    "game_code": "ABCD",
+    "quizzes": [
+      {
+        "title": "Around the World",
+        "questions": 5,
+        "played": true
+      }
+    ],
+    "players": [
+      {
+        "player": 1,
+        "name": "Sam",
+        "connected": true
+      },
+      {
+        "player": 2,
+        "name": "Jo",
+        "connected": false
+      }
+    ],
+    "phase": {
+      "phase": "setup"
+    },
+    "paused": false,
+    "auto_advance": {
+      "enabled": false,
+      "reveal_secs": 5,
+      "standings_secs": 30,
+      "countdown_secs": 3
+    }
+  },
+  {
+    "type": "countdown",
+    "next": "Next question",
+    "in_ms": 3000
   }
 ]

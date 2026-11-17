@@ -1,6 +1,7 @@
 //! The game: asking a quiz's questions, timing and scoring the answers, revealing them and the standings, and moving on
-//! only when the host says so. Like party.rs, it is rules alone: the time is passed in, so that the tests can set it,
-//! and net.rs sends the players what changes.
+//! when the host says so, or by itself if the host has turned that on. Like party.rs, it is rules alone: the time is
+//! passed in, so that the tests can set it, and net.rs sends the players what changes, and calls [`Party::tick`] a few
+//! times a second for whatever happens when time passes.
 
 use std::{
     collections::HashMap,
@@ -8,8 +9,8 @@ use std::{
 };
 
 use protocol::{
-    Leaderboard, LeaderboardKind, LeaderboardRow, PlayerId, PlayerResult, QuestionRef, QuestionView, QuizResult,
-    Reveal, Standing,
+    HostPhase, HostState, Leaderboard, LeaderboardKind, LeaderboardRow, PlayerId, PlayerResult, QuestionRef,
+    QuestionView, QuizResult, QuizSummary, Reveal, Standing,
 };
 
 use crate::party::Party;
@@ -20,6 +21,8 @@ pub const MAX_GRACE: Duration = Duration::from_secs(2);
 /// What the party is doing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Phase {
+    /// Being set up on the Mac: choosing the quizzes and pairing host phones. No one can join yet.
+    Setup,
     /// Waiting for the host to start a quiz.
     Lobby,
     /// A question is being asked.
@@ -32,6 +35,8 @@ pub enum Phase {
     QuizLeaderboard,
     /// The party's leaderboard, after the quiz's.
     PartyLeaderboard,
+    /// The party is over.
+    Ended,
 }
 
 /// A question being asked, or last asked, and its answers.
@@ -41,7 +46,7 @@ pub struct Round {
     pub quiz: usize,
     /// The question's index in the quiz.
     pub index: usize,
-    /// The number of the round, from [`Party::rounds_asked`], for the timer which closes it.
+    /// The number of the round, from [`Party::rounds_asked`], to tell one question's reveal from the next's.
     pub number: u64,
     /// When the question was sent to the players, all at once.
     pub asked_at: Instant,
@@ -66,7 +71,7 @@ pub struct Answer {
 /// Why a host's command could not be done.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NotNow {
-    /// A quiz is already being played.
+    /// A quiz is already being played, or the party is not waiting for one.
     Playing,
     /// There is no such quiz.
     NoSuchQuiz,
@@ -89,6 +94,7 @@ impl Party {
         if self.phase != Phase::Lobby {
             return Err(NotNow::Playing);
         }
+        self.resume(now);
         if quiz >= self.quizzes.len() {
             return Err(NotNow::NoSuchQuiz);
         }
@@ -144,6 +150,8 @@ impl Party {
         let question = &quiz.questions[round.index];
         let settings = quiz.question_settings(round.index);
         let limit = Duration::from_secs(settings.time_limit.into());
+        // While the clock is stopped, the time left is what it was when it stopped.
+        let now = self.paused_at.unwrap_or(now);
         let remaining = limit.saturating_sub(now.saturating_duration_since(round.asked_at));
         Some(QuestionView {
             question: question_ref(round),
@@ -166,7 +174,7 @@ impl Party {
     /// Takes a player's answer, returning whether it was taken: only the first answer to the question being asked,
     /// from a player in the party, choosing an answer it has, given within the time limit, counts.
     pub fn answer(&mut self, player: PlayerId, question: QuestionRef, choice: u8, now: Instant) -> bool {
-        if self.phase != Phase::Question {
+        if self.phase != Phase::Question || self.paused_at.is_some() {
             return false;
         }
         let round_trip = match self.player(player) {
@@ -233,8 +241,9 @@ impl Party {
     /// quiz's last question to its leaderboard; from the standings to the next question; from the quiz's leaderboard
     /// to the party's, and from that back to the lobby.
     pub fn next(&mut self, now: Instant) {
+        self.resume(now);
         match self.phase {
-            Phase::Lobby => {}
+            Phase::Setup | Phase::Lobby | Phase::Ended => {}
             Phase::Question => self.close_question(),
             Phase::Reveal if self.is_last_question() => self.phase = Phase::QuizLeaderboard,
             Phase::Reveal => self.phase = Phase::Standings,
@@ -247,8 +256,41 @@ impl Party {
         }
     }
 
+    /// Moves on when the host presses Next: from the reveal, the standings or a quiz's leaderboard, after a short
+    /// countdown, so that the players see what is coming, or at once if Next is pressed again during it; anywhere
+    /// else, at once.
+    pub fn request_next(&mut self, now: Instant) {
+        self.resume(now);
+        let countdown = Duration::from_secs(self.auto_advance.countdown_secs.into());
+        let counting = self.pending_next().is_some();
+        if self.countdown_title().is_some() && !countdown.is_zero() && !counting {
+            self.next_at = Some((self.phase, self.rounds_asked, now + countdown));
+        } else {
+            self.next(now);
+        }
+    }
+
+    /// When the party moves on after the host pressed Next, if it is counting down to that.
+    fn pending_next(&self) -> Option<Instant> {
+        let (phase, round, at) = self.next_at?;
+        ((phase, round) == (self.phase, self.rounds_asked)).then_some(at)
+    }
+
+    /// What comes after the reveal, the standings or a quiz's leaderboard, for the countdown to it, e.g. "Standings";
+    /// None where there is no countdown.
+    pub fn countdown_title(&self) -> Option<&'static str> {
+        Some(match self.phase {
+            Phase::Reveal if self.is_last_question() => "The leaderboard",
+            Phase::Reveal => "Standings",
+            Phase::Standings => "Next question",
+            Phase::QuizLeaderboard => "The party's leaderboard",
+            _ => return None,
+        })
+    }
+
     /// Skips the question being asked, scoring nothing, and asks the next; anywhere else, the same as [`Party::next`].
     pub fn skip(&mut self, now: Instant) {
+        self.resume(now);
         if self.phase == Phase::Question {
             if self.is_last_question() {
                 self.phase = Phase::QuizLeaderboard;
@@ -257,6 +299,168 @@ impl Party {
             }
         } else {
             self.next(now);
+        }
+    }
+
+    /// What Next does now, for its button on the Mac and the host phones, or None when there is nothing to move on to.
+    pub fn next_label(&self) -> Option<&'static str> {
+        Some(match self.phase {
+            Phase::Setup | Phase::Lobby | Phase::Ended => return None,
+            Phase::Question => "End Question",
+            Phase::Reveal if self.is_last_question() => "Show the Quiz's Leaderboard",
+            Phase::Reveal => "Show Standings",
+            Phase::Standings => "Next Question",
+            Phase::QuizLeaderboard => "Show the Party's Leaderboard",
+            Phase::PartyLeaderboard => "Back to the Lobby",
+        })
+    }
+
+    /// Stops the clock: the question's time stops running, nothing moves on by itself, and no answers are taken
+    /// until it starts again. Returns whether it stopped it.
+    pub fn pause(&mut self, now: Instant) -> bool {
+        let running = matches!(
+            self.phase,
+            Phase::Question | Phase::Reveal | Phase::Standings | Phase::QuizLeaderboard | Phase::PartyLeaderboard
+        );
+        if !running || self.paused_at.is_some() {
+            return false;
+        }
+        self.paused_at = Some(now);
+        true
+    }
+
+    /// Starts the clock again, as if the time it was stopped had not passed. Returns whether it was stopped.
+    pub fn resume(&mut self, now: Instant) -> bool {
+        let Some(paused_at) = self.paused_at.take() else {
+            return false;
+        };
+        let stopped = now.saturating_duration_since(paused_at);
+        if let Some(round) = &mut self.round {
+            round.asked_at += stopped;
+            round.deadline += stopped;
+        }
+        if let Some((_, _, since)) = &mut self.shown {
+            *since += stopped;
+        }
+        if let Some((_, _, at)) = &mut self.next_at {
+            *at += stopped;
+        }
+        true
+    }
+
+    /// Ends the party: the players are told, and no one can join until the host starts a new one.
+    pub fn end_party(&mut self) {
+        self.paused_at = None;
+        self.phase = Phase::Ended;
+    }
+
+    /// Does what is due as time passes: closes the question at its deadline, and, if the party moves on by itself,
+    /// moves on once the reveal or standings have been shown for their while. Returns whether anything changed.
+    pub fn tick(&mut self, now: Instant) -> bool {
+        if self.paused_at.is_some() {
+            return false;
+        }
+        self.note_shown(now);
+        if self.phase == Phase::Question {
+            if self.round.as_ref().is_some_and(|round| now >= round.deadline) {
+                self.close_question();
+                return true;
+            }
+            return false;
+        }
+        if let Some(at) = self.advance_at()
+            && now >= at
+        {
+            self.next(now);
+            return true;
+        }
+        false
+    }
+
+    /// Notes when what is being shown began to be shown, if it is new, for the time it is shown before moving on by
+    /// itself. Called as the players are sent each change, and as time passes.
+    pub fn note_shown(&mut self, now: Instant) {
+        let showing = (self.phase, self.rounds_asked);
+        if self.shown.is_none_or(|(phase, round, _)| (phase, round) != showing) {
+            self.shown = Some((showing.0, showing.1, now));
+        }
+    }
+
+    /// When the party will move on by itself, if it will: counting down after the host pressed Next, or if the party
+    /// moves on by itself; never while the clock is stopped, nor from a question, the lobby or the party's
+    /// leaderboard, where the host chooses what comes next.
+    pub fn advance_at(&self) -> Option<Instant> {
+        if self.paused_at.is_some() {
+            return None;
+        }
+        // Whichever comes first, if the host pressed Next with less time to go by itself than the countdown.
+        match (self.pending_next(), self.auto_advance_at()) {
+            (Some(next), Some(auto)) => Some(next.min(auto)),
+            (next, auto) => next.or(auto),
+        }
+    }
+
+    /// When the party will move on by itself, if it moves on by itself and is showing a phase it moves on from.
+    fn auto_advance_at(&self) -> Option<Instant> {
+        let auto = self.auto_advance;
+        if !auto.enabled {
+            return None;
+        }
+        let wait = match self.phase {
+            Phase::Reveal => auto.reveal_secs,
+            Phase::Standings | Phase::QuizLeaderboard => auto.standings_secs,
+            _ => return None,
+        };
+        let (phase, round, since) = self.shown?;
+        ((phase, round) == (self.phase, self.rounds_asked)).then(|| since + Duration::from_secs(wait.into()))
+    }
+
+    /// Everything a host phone shows.
+    pub fn host_state(&self, now: Instant) -> HostState {
+        let phase = match self.phase {
+            Phase::Setup => HostPhase::Setup,
+            Phase::Lobby => HostPhase::Lobby,
+            Phase::Question => match (self.question_view(now), &self.round) {
+                (Some(view), Some(round)) => {
+                    let mut answered: Vec<PlayerId> = round.answers.keys().copied().collect();
+                    answered.sort();
+                    HostPhase::Question {
+                        view,
+                        correct: self.quizzes[round.quiz].quiz.questions[round.index].correct as u8,
+                        answered,
+                    }
+                }
+                _ => HostPhase::Lobby,
+            },
+            Phase::Reveal => self.reveal().map_or(HostPhase::Lobby, HostPhase::Reveal),
+            Phase::Standings => HostPhase::Standings {
+                standings: self.standings(),
+            },
+            Phase::QuizLeaderboard | Phase::PartyLeaderboard => self
+                .current_leaderboard()
+                .map_or(HostPhase::Lobby, HostPhase::Leaderboard),
+            Phase::Ended => HostPhase::Ended,
+        };
+        HostState {
+            game_code: self.code.clone(),
+            quizzes: self
+                .quizzes
+                .iter()
+                .enumerate()
+                .map(|(index, quiz)| QuizSummary {
+                    title: quiz.quiz.title.clone(),
+                    questions: quiz.quiz.questions.len() as u32,
+                    played: self.played.contains(&index),
+                })
+                .collect(),
+            players: self.lobby(),
+            phase,
+            paused: self.paused_at.is_some(),
+            auto_advance: self.auto_advance,
+            advance_in_ms: self
+                .advance_at()
+                .map(|at| at.saturating_duration_since(now).as_millis() as u32),
+            next: self.next_label().map(str::to_string),
         }
     }
 
@@ -428,6 +632,8 @@ mod tests {
 
     use quiz_format::Quiz;
 
+    use protocol::AutoAdvance;
+
     use super::*;
     use crate::party::PartyQuiz;
 
@@ -569,6 +775,152 @@ mod tests {
         party.answer(2, FIRST, 0, start);
         assert!(party.all_answered());
         assert_eq!(party.answer_count(), (2, 2));
+    }
+
+    #[test]
+    fn closes_the_question_at_its_deadline() {
+        let mut party = party();
+        let start = Instant::now();
+        party.start_quiz(0, start).unwrap();
+        assert!(!party.tick(at(start, 9.9)));
+        assert_eq!(party.phase, Phase::Question);
+        assert!(party.tick(at(start, 10.0)));
+        assert_eq!(party.phase, Phase::Reveal);
+        // Without auto-advance, it waits there for the host.
+        assert!(!party.tick(at(start, 100.0)));
+        assert_eq!(party.next_label(), Some("Show Standings"));
+    }
+
+    #[test]
+    fn a_pause_stops_the_clock() {
+        let mut party = party();
+        let start = Instant::now();
+        party.start_quiz(0, start).unwrap();
+        assert!(party.pause(at(start, 4.0)));
+        assert!(!party.pause(at(start, 5.0)), "already paused");
+        // No time passes, and no answers are taken, while it is stopped.
+        assert_eq!(party.question_view(at(start, 30.0)).unwrap().remaining_ms, 6_000);
+        assert!(!party.answer(1, FIRST, 0, at(start, 30.0)));
+        assert!(!party.tick(at(start, 30.0)));
+        assert_eq!(party.phase, Phase::Question);
+        // After a minute's pause, the question has its 6 seconds left, and an answer 1 second later took 5.
+        assert!(party.resume(at(start, 64.0)));
+        assert_eq!(party.question_view(at(start, 64.0)).unwrap().remaining_ms, 6_000);
+        assert!(party.answer(1, FIRST, 0, at(start, 65.0)));
+        assert_eq!(
+            party.round.as_ref().unwrap().answers[&1].elapsed,
+            Duration::from_secs(5)
+        );
+        assert!(!party.tick(at(start, 69.9)));
+        assert!(party.tick(at(start, 70.0)));
+        assert_eq!(party.phase, Phase::Reveal);
+    }
+
+    #[test]
+    fn moves_on_by_itself_when_asked_to() {
+        let mut party = party();
+        party.auto_advance = AutoAdvance {
+            enabled: true,
+            reveal_secs: 5,
+            standings_secs: 30,
+            countdown_secs: 3,
+        };
+        let start = Instant::now();
+        party.start_quiz(0, start).unwrap();
+        for player in 1..=3 {
+            party.answer(player, FIRST, 0, start);
+        }
+        party.close_question();
+        // The reveal for 5 seconds, from when the clock first sees it.
+        assert!(!party.tick(at(start, 1.0)));
+        assert_eq!(party.advance_at(), Some(at(start, 6.0)));
+        assert!(!party.tick(at(start, 5.9)));
+        assert!(party.tick(at(start, 6.0)));
+        assert_eq!(party.phase, Phase::Standings);
+        // The standings for 30 seconds, less a 10-second pause, then the next question.
+        assert!(!party.tick(at(start, 6.0)));
+        party.pause(at(start, 10.0));
+        assert_eq!(party.advance_at(), None);
+        party.resume(at(start, 20.0));
+        assert!(!party.tick(at(start, 45.9)));
+        assert!(party.tick(at(start, 46.0)));
+        assert_eq!(party.phase, Phase::Question);
+        // The last question's reveal goes on to the quiz's leaderboard, then the party's, and waits there.
+        party.close_question();
+        party.tick(at(start, 50.0));
+        assert!(party.tick(at(start, 55.0)));
+        assert_eq!(party.phase, Phase::QuizLeaderboard);
+        party.tick(at(start, 55.0));
+        assert!(party.tick(at(start, 85.0)));
+        assert_eq!(party.phase, Phase::PartyLeaderboard);
+        assert!(!party.tick(at(start, 1000.0)));
+        assert_eq!(party.phase, Phase::PartyLeaderboard);
+    }
+
+    #[test]
+    fn next_counts_down_from_the_reveal_and_standings() {
+        let mut party = party();
+        let start = Instant::now();
+        party.start_quiz(0, start).unwrap();
+        // Ending a question is at once.
+        party.request_next(start);
+        assert_eq!(party.phase, Phase::Reveal);
+        assert_eq!(party.countdown_title(), Some("Standings"));
+        // From the reveal, 3 seconds' countdown, which a pause stops.
+        party.request_next(at(start, 1.0));
+        assert_eq!(party.phase, Phase::Reveal);
+        assert_eq!(party.advance_at(), Some(at(start, 4.0)));
+        party.pause(at(start, 2.0));
+        party.resume(at(start, 12.0));
+        assert!(!party.tick(at(start, 13.9)));
+        assert!(party.tick(at(start, 14.0)));
+        assert_eq!(party.phase, Phase::Standings);
+        assert_eq!(party.advance_at(), None, "the countdown lapses once the party moves on");
+        // Pressing Next again during the countdown moves on at once.
+        party.request_next(at(start, 15.0));
+        party.request_next(at(start, 15.5));
+        assert_eq!(party.phase, Phase::Question);
+        // With no countdown, Next is at once.
+        party.auto_advance.countdown_secs = 0;
+        party.close_question();
+        party.request_next(at(start, 20.0));
+        assert_eq!(party.phase, Phase::QuizLeaderboard);
+    }
+
+    #[test]
+    fn next_with_auto_advance_moves_on_at_the_sooner_time() {
+        let mut party = party();
+        party.auto_advance.enabled = true;
+        let start = Instant::now();
+        party.start_quiz(0, start).unwrap();
+        party.close_question();
+        party.note_shown(start);
+        // 5 seconds' reveal: Next at 4 seconds would count down to 7, so it still moves on at 5.
+        party.request_next(at(start, 4.0));
+        assert_eq!(party.advance_at(), Some(at(start, 5.0)));
+    }
+
+    #[test]
+    fn hosts_see_the_answer_and_who_has_answered() {
+        let mut party = party();
+        let start = Instant::now();
+        party.start_quiz(0, start).unwrap();
+        party.answer(2, FIRST, 1, start);
+        let state = party.host_state(at(start, 1.0));
+        assert_eq!(state.game_code, "ABCD");
+        assert_eq!(state.next.as_deref(), Some("End Question"));
+        let HostPhase::Question {
+            correct,
+            answered,
+            view,
+        } = state.phase
+        else {
+            panic!("not a question: {:?}", state.phase)
+        };
+        assert_eq!((correct, answered, view.remaining_ms), (0, vec![2], 9_000));
+        party.end_party();
+        assert_eq!(party.host_state(start).phase, HostPhase::Ended);
+        assert_eq!(party.next_label(), None);
     }
 
     /// Plays a one-question quiz in which each named player answers correctly at once or wrongly, by number.

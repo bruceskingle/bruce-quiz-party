@@ -94,6 +94,36 @@ pub enum HostCommand {
     RemovePlayer { player: PlayerId },
     /// Ends the party.
     EndParty,
+    /// Turns moving on by itself on or off, or changes how long it waits.
+    SetAutoAdvance { auto_advance: AutoAdvance },
+}
+
+/// Whether the party moves on by itself after each question, as if the host pressed Next: the reveal is shown for a
+/// while, then the standings, then the next question is asked. At the end of a quiz, it shows its leaderboard, then
+/// the party's, and waits there for the host to choose the next quiz.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct AutoAdvance {
+    /// Whether it is on.
+    pub enabled: bool,
+    /// How long the reveal of each question's answer is shown, in seconds.
+    pub reveal_secs: u32,
+    /// How long the standings, or a quiz's leaderboard, are shown, in seconds.
+    pub standings_secs: u32,
+    /// How long to count down after the host presses Next on the reveal, the standings or a quiz's leaderboard, in
+    /// seconds, so that the players see what is coming; 0 moves on at once. This applies whether or not the party
+    /// moves on by itself.
+    pub countdown_secs: u32,
+}
+
+impl Default for AutoAdvance {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            reveal_secs: 5,
+            standings_secs: 30,
+            countdown_secs: 3,
+        }
+    }
 }
 
 /// A question of the party: its quiz and its place in it.
@@ -162,6 +192,14 @@ pub enum ServerMessage {
     },
     /// A leaderboard, at the end of a quiz: first the quiz's, then the party's.
     Leaderboard(Leaderboard),
+    /// The party will move on soon, by itself or as the host pressed Next: what comes next and when, for a countdown
+    /// under the reveal or the standings. Whatever the party shows next ends it.
+    Countdown {
+        /// What comes next, e.g. "Next question" or "Standings".
+        next: String,
+        /// How long until then.
+        in_ms: u32,
+    },
     /// The clock has stopped.
     Paused,
     /// The clock has started again.
@@ -331,6 +369,8 @@ pub struct QuizResult {
 /// Everything a host phone shows.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct HostState {
+    /// The party's game code, for the host to tell the players.
+    pub game_code: String,
     /// The party's quizzes, to choose the next one from.
     pub quizzes: Vec<QuizSummary>,
     /// The players.
@@ -339,6 +379,14 @@ pub struct HostState {
     pub phase: HostPhase,
     /// Whether the clock is stopped.
     pub paused: bool,
+    /// Whether the party moves on by itself, and how long it waits.
+    pub auto_advance: AutoAdvance,
+    /// How long until the party moves on by itself, if it will, as it was when this was sent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub advance_in_ms: Option<u32>,
+    /// What Next does now, e.g. "Show Standings", or none when there is nothing to move on to.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<String>,
 }
 
 /// One of the party's quizzes, as listed to choose from.
@@ -356,6 +404,8 @@ pub struct QuizSummary {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "phase", rename_all = "snake_case")]
 pub enum HostPhase {
+    /// The party is being set up on the Mac: no one can join yet.
+    Setup,
     /// Waiting for the host to choose the next quiz.
     Lobby,
     /// A question is being asked.
@@ -370,9 +420,12 @@ pub enum HostPhase {
     /// The answer to a question is being shown.
     Reveal(Reveal),
     /// The standings after a question are being shown.
-    Standings,
+    Standings {
+        /// Every player, in the order of their places.
+        standings: Vec<Standing>,
+    },
     /// A leaderboard is being shown.
-    Leaderboard { sorted_by: LeaderboardKind },
+    Leaderboard(Leaderboard),
     /// The party is over.
     Ended,
 }

@@ -11,6 +11,7 @@
 <body>
   <main id="app">
     <header class="brand">Bruce's Quiz Party</header>
+    <p id="paused" class="paused" hidden>Paused</p>
 
     <!-- Choosing a name, and the game code if the link did not give it. -->
     <section id="join" class="screen" hidden>
@@ -60,6 +61,9 @@
       <p id="standings-me" class="muted"></p>
       <ol id="standings-list" class="standings"></ol>
     </section>
+
+    <!-- The countdown to moving on, under the result or the standings. -->
+    <p id="next-countdown" class="next-countdown" hidden></p>
 
     <!-- A message on its own, e.g. while connecting, or after being removed. -->
     <section id="message" class="screen" hidden>

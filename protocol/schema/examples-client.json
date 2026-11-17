@@ -78,5 +78,17 @@
     "command": {
       "command": "end_party"
     }
+  },
+  {
+    "type": "host",
+    "command": {
+      "command": "set_auto_advance",
+      "auto_advance": {
+        "enabled": true,
+        "reveal_secs": 5,
+        "standings_secs": 30,
+        "countdown_secs": 3
+      }
+    }
   }
 ]

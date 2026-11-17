@@ -153,11 +153,20 @@ async fn plays_a_quiz() {
         (false, 0, 2, Some(2))
     );
 
+    // Next counts down first, so that the players see what is coming; pressed again, it moves on at once.
+    shared.next();
+    let ServerMessage::Countdown { next, in_ms } = receive(&mut jo).await else {
+        panic!("no countdown")
+    };
+    assert_eq!(next, "Standings");
+    assert!((2000..=3000).contains(&in_ms), "{in_ms}");
     shared.next();
     let ServerMessage::Standings { standings } = receive(&mut jo).await else {
         panic!("no standings")
     };
     assert_eq!(standings[0].name, "Sam");
+    // From here, without the countdown.
+    shared.hub().party.auto_advance.countdown_secs = 0;
 
     shared.next();
     let ServerMessage::Question(view) = receive(&mut jo).await else {

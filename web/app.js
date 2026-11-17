@@ -41,6 +41,15 @@ const state = {
   endsAt: 0,
   /** Whether this player has answered the question being asked. */
   locked: false,
+  /** Whether the host has stopped the clock. */
+  paused: false,
+  /** Counts the questions shown, so that only the latest one's countdown keeps running. */
+  timer: 0,
+  /** What comes next and when, by this phone's clock, while the party counts down to moving on. */
+  nextAt: null,
+  nextTitle: "",
+  /** The countdown's next tick, to cancel when it ends or starts again. */
+  countdownTimer: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -125,8 +134,45 @@ function connect() {
   };
 }
 
+/** Shows or hides that the host has stopped the clock. */
+function setPaused(paused) {
+  state.paused = paused;
+  $("paused").hidden = !paused;
+}
+
+/** Shows the countdown to what comes next, e.g. "Next question in 3", until the party moves on. */
+function showCountdown(title, inMs) {
+  state.nextTitle = title;
+  state.nextAt = performance.now() + inMs;
+  tickCountdown();
+}
+
+function hideCountdown() {
+  clearTimeout(state.countdownTimer);
+  state.nextAt = null;
+  $("next-countdown").hidden = true;
+}
+
+function tickCountdown() {
+  clearTimeout(state.countdownTimer);
+  if (state.nextAt === null) return;
+  const seconds = Math.max(0, Math.ceil((state.nextAt - performance.now()) / 1000));
+  const element = $("next-countdown");
+  element.textContent = state.nextTitle + " in " + seconds;
+  element.hidden = false;
+  if (seconds > 0) state.countdownTimer = setTimeout(tickCountdown, 250);
+}
+
 /** Handles a message from the controller. */
 function receive(message) {
+  // Whatever the party shows next ends any countdown; a new one follows it if the party is counting down again.
+  if (["lobby", "question", "reveal", "standings", "leaderboard", "paused", "removed", "party_ended"].includes(message.type)) {
+    hideCountdown();
+  }
+  // Whatever the party shows next, the clock is running again, unless it says otherwise.
+  if (["lobby", "question", "reveal", "standings", "leaderboard", "resumed", "party_ended"].includes(message.type)) {
+    setPaused(false);
+  }
   switch (message.type) {
     case "ping":
       send({ type: "pong", nonce: message.nonce });
@@ -168,6 +214,12 @@ function receive(message) {
       break;
     case "leaderboard":
       showLeaderboard(message);
+      break;
+    case "paused":
+      setPaused(true);
+      break;
+    case "countdown":
+      showCountdown(message.next, message.in_ms);
       break;
     case "removed":
       state.stayConnected = false;
@@ -228,12 +280,13 @@ function showQuestion(view) {
   );
   $("locked").hidden = true;
   show("question");
-  tickTimer();
+  state.timer += 1;
+  tickTimer(state.timer);
 }
 
 /** Sends the player's answer: only the first tap counts, and the buttons lock at once rather than wait for the reply. */
 function choose(position) {
-  if (state.locked || !state.question || performance.now() > state.endsAt) return;
+  if (state.locked || state.paused || !state.question || performance.now() > state.endsAt) return;
   send({ type: "answer", question: state.question.question, choice: position });
   lock(position);
 }
@@ -251,8 +304,13 @@ function lock(choice) {
 }
 
 /** Shrinks the countdown bar until the time is up, then locks the answers. */
-function tickTimer() {
-  if (!state.question) return;
+function tickTimer(timer) {
+  if (!state.question || timer !== state.timer) return;
+  // While the clock is stopped, the bar stays as it is; the question is sent again when it starts.
+  if (state.paused) {
+    requestAnimationFrame(() => tickTimer(timer));
+    return;
+  }
   const left = Math.max(0, state.endsAt - performance.now());
   const fraction = left / Math.max(1, state.question.time_limit_ms);
   const bar = $("timer-bar");
@@ -264,7 +322,7 @@ function tickTimer() {
     }
     return;
   }
-  requestAnimationFrame(tickTimer);
+  requestAnimationFrame(() => tickTimer(timer));
 }
 
 /** A place as an ordinal, e.g. 1st, 2nd, 3rd, 11th. */
