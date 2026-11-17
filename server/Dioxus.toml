@@ -1,0 +1,9 @@
+[application]
+name = "Bruces Quiz Party"
+
+[bundle]
+identifier = "org.skingle.bruce-quiz-party"
+publisher = "BruceSkingle"
+
+[web.app]
+title = "Bruce's Quiz Party"

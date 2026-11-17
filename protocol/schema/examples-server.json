@@ -1,0 +1,428 @@
+[
+  {
+    "type": "welcome",
+    "player": 1,
+    "token": "0123456789abcdef",
+    "name": "Sam"
+  },
+  {
+    "type": "rejected",
+    "reason": "wrong_game_code",
+    "message": "That isn't this party's code."
+  },
+  {
+    "type": "rejected",
+    "reason": "wrong_protocol",
+    "message": "Update the app."
+  },
+  {
+    "type": "rejected",
+    "reason": "bad_name",
+    "message": "Choose a name."
+  },
+  {
+    "type": "rejected",
+    "reason": "closed",
+    "message": "Closed."
+  },
+  {
+    "type": "rejected",
+    "reason": "not_authorised",
+    "message": "Not paired."
+  },
+  {
+    "type": "ping",
+    "nonce": 42
+  },
+  {
+    "type": "lobby",
+    "players": [
+      {
+        "player": 1,
+        "name": "Sam",
+        "connected": true
+      },
+      {
+        "player": 2,
+        "name": "Jo",
+        "connected": false
+      }
+    ]
+  },
+  {
+    "type": "question",
+    "question": {
+      "quiz": 1,
+      "index": 2
+    },
+    "quiz_title": "Around the World",
+    "number": 3,
+    "total": 5,
+    "text": "Which flag is this?",
+    "image": "/quiz/around-the-world/images/flag.svg",
+    "image_alt": "A red disc on white",
+    "answers": [
+      "Japan",
+      "Bangladesh",
+      "Palau"
+    ],
+    "time_limit_ms": 20000,
+    "remaining_ms": 12345,
+    "max_points": 1000
+  },
+  {
+    "type": "question",
+    "question": {
+      "quiz": 1,
+      "index": 2
+    },
+    "quiz_title": "Around the World",
+    "number": 3,
+    "total": 5,
+    "text": "Which flag is this?",
+    "answers": [
+      "Japan",
+      "Bangladesh",
+      "Palau"
+    ],
+    "time_limit_ms": 20000,
+    "remaining_ms": 12345,
+    "max_points": 1000
+  },
+  {
+    "type": "answer_locked",
+    "question": {
+      "quiz": 1,
+      "index": 2
+    },
+    "choice": 1
+  },
+  {
+    "type": "answer_count",
+    "question": {
+      "quiz": 1,
+      "index": 2
+    },
+    "answered": 1,
+    "players": 2
+  },
+  {
+    "type": "reveal",
+    "question": {
+      "quiz": 1,
+      "index": 2
+    },
+    "correct": 0,
+    "counts": [
+      3,
+      1,
+      0
+    ],
+    "source": "https://en.wikipedia.org/wiki/Flag_of_Japan",
+    "result": {
+      "choice": 0,
+      "correct": true,
+      "points": 850,
+      "quiz_score": 2400,
+      "quiz_rank": 2
+    }
+  },
+  {
+    "type": "reveal",
+    "question": {
+      "quiz": 1,
+      "index": 2
+    },
+    "correct": 0,
+    "counts": [
+      3,
+      1,
+      0
+    ],
+    "result": {
+      "correct": false,
+      "points": 0,
+      "quiz_score": 0,
+      "quiz_rank": 2
+    }
+  },
+  {
+    "type": "reveal",
+    "question": {
+      "quiz": 1,
+      "index": 2
+    },
+    "correct": 0,
+    "counts": [
+      3,
+      1,
+      0
+    ],
+    "source": "https://en.wikipedia.org/wiki/Flag_of_Japan"
+  },
+  {
+    "type": "standings",
+    "standings": [
+      {
+        "player": 1,
+        "name": "Sam",
+        "score": 2400,
+        "rank": 1,
+        "last_points": 850
+      }
+    ]
+  },
+  {
+    "type": "leaderboard",
+    "sorted_by": {
+      "kind": "quiz",
+      "quiz": 1
+    },
+    "quizzes": [
+      "Science Basics",
+      "Around the World"
+    ],
+    "rows": [
+      {
+        "player": 2,
+        "name": "Jo",
+        "quizzes": [
+          null,
+          {
+            "score": 2400,
+            "rank": 1
+          }
+        ],
+        "total": 2400,
+        "rank": 2
+      }
+    ]
+  },
+  {
+    "type": "leaderboard",
+    "sorted_by": {
+      "kind": "party"
+    },
+    "quizzes": [
+      "Science Basics"
+    ],
+    "rows": []
+  },
+  {
+    "type": "paused"
+  },
+  {
+    "type": "resumed"
+  },
+  {
+    "type": "removed"
+  },
+  {
+    "type": "party_ended"
+  },
+  {
+    "type": "paired",
+    "token": "fedcba9876543210"
+  },
+  {
+    "type": "host_state",
+    "quizzes": [
+      {
+        "title": "Around the World",
+        "questions": 5,
+        "played": true
+      }
+    ],
+    "players": [
+      {
+        "player": 1,
+        "name": "Sam",
+        "connected": true
+      },
+      {
+        "player": 2,
+        "name": "Jo",
+        "connected": false
+      }
+    ],
+    "phase": {
+      "phase": "lobby"
+    },
+    "paused": false
+  },
+  {
+    "type": "host_state",
+    "quizzes": [
+      {
+        "title": "Around the World",
+        "questions": 5,
+        "played": true
+      }
+    ],
+    "players": [
+      {
+        "player": 1,
+        "name": "Sam",
+        "connected": true
+      },
+      {
+        "player": 2,
+        "name": "Jo",
+        "connected": false
+      }
+    ],
+    "phase": {
+      "phase": "question",
+      "view": {
+        "question": {
+          "quiz": 1,
+          "index": 2
+        },
+        "quiz_title": "Around the World",
+        "number": 3,
+        "total": 5,
+        "text": "Which flag is this?",
+        "image": "/quiz/around-the-world/images/flag.svg",
+        "image_alt": "A red disc on white",
+        "answers": [
+          "Japan",
+          "Bangladesh",
+          "Palau"
+        ],
+        "time_limit_ms": 20000,
+        "remaining_ms": 12345,
+        "max_points": 1000
+      },
+      "correct": 0,
+      "answered": [
+        1
+      ]
+    },
+    "paused": false
+  },
+  {
+    "type": "host_state",
+    "quizzes": [
+      {
+        "title": "Around the World",
+        "questions": 5,
+        "played": true
+      }
+    ],
+    "players": [
+      {
+        "player": 1,
+        "name": "Sam",
+        "connected": true
+      },
+      {
+        "player": 2,
+        "name": "Jo",
+        "connected": false
+      }
+    ],
+    "phase": {
+      "phase": "reveal",
+      "question": {
+        "quiz": 1,
+        "index": 2
+      },
+      "correct": 0,
+      "counts": [
+        3,
+        1,
+        0
+      ],
+      "source": "https://en.wikipedia.org/wiki/Flag_of_Japan",
+      "result": {
+        "choice": 0,
+        "correct": true,
+        "points": 850,
+        "quiz_score": 2400,
+        "quiz_rank": 2
+      }
+    },
+    "paused": false
+  },
+  {
+    "type": "host_state",
+    "quizzes": [
+      {
+        "title": "Around the World",
+        "questions": 5,
+        "played": true
+      }
+    ],
+    "players": [
+      {
+        "player": 1,
+        "name": "Sam",
+        "connected": true
+      },
+      {
+        "player": 2,
+        "name": "Jo",
+        "connected": false
+      }
+    ],
+    "phase": {
+      "phase": "standings"
+    },
+    "paused": false
+  },
+  {
+    "type": "host_state",
+    "quizzes": [
+      {
+        "title": "Around the World",
+        "questions": 5,
+        "played": true
+      }
+    ],
+    "players": [
+      {
+        "player": 1,
+        "name": "Sam",
+        "connected": true
+      },
+      {
+        "player": 2,
+        "name": "Jo",
+        "connected": false
+      }
+    ],
+    "phase": {
+      "phase": "leaderboard",
+      "sorted_by": {
+        "kind": "party"
+      }
+    },
+    "paused": false
+  },
+  {
+    "type": "host_state",
+    "quizzes": [
+      {
+        "title": "Around the World",
+        "questions": 5,
+        "played": true
+      }
+    ],
+    "players": [
+      {
+        "player": 1,
+        "name": "Sam",
+        "connected": true
+      },
+      {
+        "player": 2,
+        "name": "Jo",
+        "connected": false
+      }
+    ],
+    "phase": {
+      "phase": "ended"
+    },
+    "paused": false
+  }
+]

@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ClientMessage",
+  "description": "A message from a phone or browser to the controller.",
+  "oneOf": [
+    {
+      "description": "Joins the party as a player, or rejoins it as the same player, with the same score, after the connection was\nlost, by giving the token the controller sent when the player first joined.",
+      "type": "object",
+      "properties": {
+        "game_code": {
+          "description": "The party's game code, as shown on the big screen.",
+          "type": "string"
+        },
+        "name": {
+          "description": "The name the player chose, shown on the big screen.",
+          "type": "string"
+        },
+        "protocol": {
+          "description": "The client's [`PROTOCOL_VERSION`].",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "token": {
+          "description": "The token from the [`ServerMessage::Welcome`] of an earlier connection, kept on the device, to rejoin.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "const": "join"
+        }
+      },
+      "required": [
+        "type",
+        "protocol",
+        "game_code",
+        "name"
+      ]
+    },
+    {
+      "description": "Answers the question being asked. Only the first answer to a question counts.",
+      "type": "object",
+      "properties": {
+        "choice": {
+          "description": "The index of the chosen answer, from 0.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "question": {
+          "description": "The question being answered, as numbered in its [`ServerMessage::Question`].",
+          "$ref": "#/$defs/QuestionRef"
+        },
+        "type": {
+          "type": "string",
+          "const": "answer"
+        }
+      },
+      "required": [
+        "type",
+        "question",
+        "choice"
+      ]
+    },
+    {
+      "description": "Answers a [`ServerMessage::Ping`] at once, so that the controller can measure the connection's round trip.",
+      "type": "object",
+      "properties": {
+        "nonce": {
+          "description": "The ping's nonce.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "type": {
+          "type": "string",
+          "const": "pong"
+        }
+      },
+      "required": [
+        "type",
+        "nonce"
+      ]
+    },
+    {
+      "description": "Pairs the iOS app as a host, from the one-time pairing code in the QR code shown in setup mode.",
+      "type": "object",
+      "properties": {
+        "device_name": {
+          "description": "The phone's name, to list the paired phones on the Mac.",
+          "type": "string"
+        },
+        "pairing_code": {
+          "description": "The one-time code from the pairing QR code.",
+          "type": "string"
+        },
+        "protocol": {
+          "description": "The client's [`PROTOCOL_VERSION`].",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "type": {
+          "type": "string",
+          "const": "pair_host"
+        }
+      },
+      "required": [
+        "type",
+        "protocol",
+        "pairing_code",
+        "device_name"
+      ]
+    },
+    {
+      "description": "Connects a paired host phone, with the token it was given when it was paired.",
+      "type": "object",
+      "properties": {
+        "protocol": {
+          "description": "The client's [`PROTOCOL_VERSION`].",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "token": {
+          "description": "The token from [`ServerMessage::Paired`].",
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "const": "host_connect"
+        }
+      },
+      "required": [
+        "type",
+        "protocol",
+        "token"
+      ]
+    },
+    {
+      "description": "A command from a host phone.",
+      "type": "object",
+      "properties": {
+        "command": {
+          "description": "What to do.",
+          "$ref": "#/$defs/HostCommand"
+        },
+        "type": {
+          "type": "string",
+          "const": "host"
+        }
+      },
+      "required": [
+        "type",
+        "command"
+      ]
+    }
+  ],
+  "$defs": {
+    "HostCommand": {
+      "description": "What a host can do, from the Mac or a paired host phone.",
+      "oneOf": [
+        {
+          "description": "Starts one of the party's quizzes, by its index in [`HostState::quizzes`].",
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "const": "start_quiz"
+            },
+            "quiz": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "command",
+            "quiz"
+          ]
+        },
+        {
+          "description": "Goes on from the reveal or a leaderboard, the only way the party moves on.",
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "const": "next"
+            }
+          },
+          "required": [
+            "command"
+          ]
+        },
+        {
+          "description": "Ends the question being asked at once, scoring nothing, or skips the next one.",
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "const": "skip"
+            }
+          },
+          "required": [
+            "command"
+          ]
+        },
+        {
+          "description": "Stops the clock.",
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "const": "pause"
+            }
+          },
+          "required": [
+            "command"
+          ]
+        },
+        {
+          "description": "Starts the clock again.",
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "const": "resume"
+            }
+          },
+          "required": [
+            "command"
+          ]
+        },
+        {
+          "description": "Removes a player from the party.",
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "const": "remove_player"
+            },
+            "player": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "command",
+            "player"
+          ]
+        },
+        {
+          "description": "Ends the party.",
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "const": "end_party"
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      ]
+    },
+    "QuestionRef": {
+      "description": "A question of the party: its quiz and its place in it.",
+      "type": "object",
+      "properties": {
+        "index": {
+          "description": "The question's index in its quiz, from 0.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "quiz": {
+          "description": "The quiz's index among the party's quizzes.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "quiz",
+        "index"
+      ]
+    }
+  }
+}

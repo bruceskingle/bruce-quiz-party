@@ -1,0 +1,22 @@
+# The tests, Rust's and the iOS app's Swift package's, on a Mac as the controller is a Mac app, and cargo-deny's checks of the dependencies' licences, advisories
+# and sources, see deny.toml, on every push and pull request.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --workspace
+      - run: swift test --package-path ios/QuizPartyKit
+
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: EmbarkStudios/cargo-deny-action@v2

@@ -1,0 +1,9 @@
+// The app's build settings which are not signing's. Signing's are in Signing.xcconfig, which is not in git, so that
+// moving from one Apple team to another, or from the free Personal Team to a paid one, changes no checked-in file:
+// copy Signing.xcconfig.example to Signing.xcconfig and set the team.
+
+PRODUCT_BUNDLE_IDENTIFIER = org.skingle.bruce-quiz-party
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+
+#include? "Signing.xcconfig"

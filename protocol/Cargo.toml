@@ -1,0 +1,17 @@
+[package]
+name = "bruce-quiz-protocol"
+description = "The messages between Bruce's Quiz Party's controller and its phones and browsers."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+serde.workspace = true
+# The JSON Schema of the messages, in schema/, which the iOS app's Swift types are checked against.
+schemars = "1.2"
+
+[dev-dependencies]
+serde_json.workspace = true

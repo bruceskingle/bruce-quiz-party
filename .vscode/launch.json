@@ -1,0 +1,38 @@
+{
+    // Debugging, with CodeLLDB. The things which only run a command are in tasks.json.
+    "version": "0.2.0",
+    "configurations": [
+        {
+            // The controller, with the sample quizzes. CARGO_MANIFEST_DIR lets Dioxus find the assets when run by cargo
+            // rather than dx.
+            "type": "lldb",
+            "request": "launch",
+            "name": "Controller",
+            "presentation": { "group": "1 App", "order": 1 },
+            "cargo": {
+                "args": ["build", "--bin=bruce-quiz-party", "--package=bruce-quiz-party"],
+                "filter": { "name": "bruce-quiz-party", "kind": "bin" }
+            },
+            "args": ["--quizzes", "${workspaceFolder}/quizzes"],
+            "cwd": "${workspaceFolder}/server",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}/server",
+                "RUST_BACKTRACE": "1",
+                "OS_ACTIVITY_MODE": "disable"
+            }
+        },
+        {
+            // The quiz format's tests, e.g. to step through the parser.
+            "type": "lldb",
+            "request": "launch",
+            "name": "Quiz Format Tests",
+            "presentation": { "group": "2 Tests", "order": 1 },
+            "cargo": {
+                "args": ["test", "--no-run", "--package=bruce-quiz-format"],
+                "filter": { "name": "format", "kind": "test" }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

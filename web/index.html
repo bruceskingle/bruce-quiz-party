@@ -1,0 +1,71 @@
+<!doctype html>
+<!-- The browser client of Bruce's Quiz Party, served by the controller to the players' phones, see app.js. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#0f1116">
+  <title>Bruce's Quiz Party</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="app">
+    <header class="brand">Bruce's Quiz Party</header>
+
+    <!-- Choosing a name, and the game code if the link did not give it. -->
+    <section id="join" class="screen" hidden>
+      <form id="join-form" autocomplete="off">
+        <label for="code">Game code</label>
+        <input id="code" name="code" maxlength="8" autocapitalize="characters" spellcheck="false" required>
+        <label for="name">Your name</label>
+        <input id="name" name="name" maxlength="20" autocapitalize="words" spellcheck="false" required>
+        <p id="join-error" class="error" hidden></p>
+        <button type="submit" class="big">Join</button>
+      </form>
+    </section>
+
+    <!-- Joined, waiting for the host to start a quiz. -->
+    <section id="lobby" class="screen" hidden>
+      <p class="hello">You're in, <span id="me"></span>!</p>
+      <p class="muted">Waiting for the host to start the quiz…</p>
+      <ul id="players" class="players"></ul>
+    </section>
+
+    <!-- A question: its text and any image, the countdown, and a button per answer. -->
+    <section id="question" class="screen" hidden>
+      <div class="question-top">
+        <span id="question-number" class="muted"></span>
+        <span id="answered" class="muted"></span>
+      </div>
+      <div class="timer"><div id="timer-bar"></div></div>
+      <p id="question-text" class="question-text"></p>
+      <img id="question-image" class="question-image" alt="" hidden>
+      <div id="answers" class="answers"></div>
+      <p id="locked" class="locked" hidden>Answer locked in!</p>
+    </section>
+
+    <!-- How the player did on the question just asked. -->
+    <section id="result" class="screen" hidden>
+      <div id="result-panel" class="result-panel">
+        <p id="result-title" class="result-title"></p>
+        <p id="result-points" class="result-points"></p>
+        <p id="result-rank" class="result-rank"></p>
+      </div>
+      <p id="result-answer" class="muted"></p>
+    </section>
+
+    <!-- The standings after a question. -->
+    <section id="standings" class="screen" hidden>
+      <p id="standings-title" class="hello"></p>
+      <p id="standings-me" class="muted"></p>
+      <ol id="standings-list" class="standings"></ol>
+    </section>
+
+    <!-- A message on its own, e.g. while connecting, or after being removed. -->
+    <section id="message" class="screen" hidden>
+      <p id="message-text" class="hello"></p>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

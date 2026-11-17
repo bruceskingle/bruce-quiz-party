@@ -1,0 +1,7 @@
+// Copy this to Signing.xcconfig, which git ignores, and set your Apple team's ID: Xcode ▸ Settings ▸ Accounts shows it,
+// or the "OU" of an "Apple Development" certificate in Keychain Access. Xcode then makes and renews the provisioning
+// profile itself (automatic signing). A free Apple ID's Personal Team works too, though its installs expire after 7
+// days.
+
+DEVELOPMENT_TEAM = ABCDE12345
+CODE_SIGN_STYLE = Automatic

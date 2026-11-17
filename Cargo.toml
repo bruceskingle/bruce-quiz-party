@@ -1,0 +1,20 @@
+# The Rust half of Bruce's Quiz Party: the shared crates and the Mac apps. Each member can be opened on its own in VS
+# Code. The shared crates are specific to this app, so they live here rather than on crates.io.
+[workspace]
+resolver = "3"
+members = ["quiz-format", "protocol", "server"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["Bruce Skingle"]
+repository = "https://github.com/bruceskingle/bruce-quiz-party"
+
+[workspace.dependencies]
+quiz-format = { path = "quiz-format", package = "bruce-quiz-format" }
+protocol = { path = "protocol", package = "bruce-quiz-protocol" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2"
+anyhow = "1.0"

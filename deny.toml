@@ -1,0 +1,53 @@
+# cargo-deny's checks, run with `cargo deny check`: the licences of every crate in the build, see the licences rule in
+# the README, the advisories against them, and where they come from.
+
+[graph]
+all-features = true
+
+[licenses]
+# Crates which are MIT OR Apache-2.0 pass by Apache-2.0. MIT alone is approved too, as are Unicode-3.0, the Unicode
+# Consortium's MIT-like licence for its tables, and MPL-2.0 for crates used unmodified. Any other licence fails until it
+# is approved and listed below, by crate, with what pulls it in.
+allow = ["Apache-2.0", "MIT", "Unicode-3.0", "MPL-2.0"]
+confidence-threshold = 0.9
+# Permissive crates which Dioxus pulls in, the same as Bruce's Smart Home ships, approved by Bruce on 13 Nov 2026. A new
+# crate under one of these licences still needs approving, by name, before it is added here.
+exceptions = [
+    # BSD-2-Clause, AVIF decoding in the image crate, which dioxus-desktop and dioxus-free-icons pull in.
+    { crate = "av1-grain", allow = ["BSD-2-Clause"] },
+    { crate = "rav1e", allow = ["BSD-2-Clause"] },
+    { crate = "v_frame", allow = ["BSD-2-Clause"] },
+    # BSD-3-Clause, the image crate's AVIF and OpenEXR decoders, and subtle, through dioxus-desktop.
+    { crate = "avif-serialize", allow = ["BSD-3-Clause"] },
+    { crate = "ravif", allow = ["BSD-3-Clause"] },
+    { crate = "exr", allow = ["BSD-3-Clause"] },
+    { crate = "lebe", allow = ["BSD-3-Clause"] },
+    { crate = "subtle", allow = ["BSD-3-Clause"] },
+    # Zlib, Dioxus's core.
+    { crate = "const_format", allow = ["Zlib"] },
+    { crate = "const_format_proc_macros", allow = ["Zlib"] },
+    { crate = "konst", allow = ["Zlib"] },
+    { crate = "konst_macro_rules", allow = ["Zlib"] },
+    { crate = "slotmap", allow = ["Zlib"] },
+    # ISC, dynamic library loading in Dioxus's devtools, and TLS certificate checking.
+    { crate = "libloading", allow = ["ISC"] },
+    { crate = "rustls-webpki", allow = ["ISC"] },
+    { crate = "untrusted", allow = ["ISC"] },
+    # (MIT OR Apache-2.0) AND NCSA, LLVM's fuzzer, through rav1e, and Apache-2.0 WITH LLVM-exception.
+    { crate = "libfuzzer-sys", allow = ["NCSA"] },
+    { crate = "target-lexicon", allow = ["Apache-2.0 WITH LLVM-exception"] },
+    # MIT AND BSD-3-Clause, axum's URL router, a port of Go's httprouter which keeps its BSD notice. Approved by Bruce
+    # on 13 Nov 2026; its notice goes in the app's third-party notices.
+    { crate = "matchit", allow = ["BSD-3-Clause"] },
+]
+
+[advisories]
+# RustSec's advisories: a vulnerable crate fails, an unmaintained one is a warning, so that it is seen.
+unmaintained = "workspace"
+
+[bans]
+multiple-versions = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

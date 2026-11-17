@@ -1,0 +1,44 @@
+[package]
+name = "bruce-quiz-party"
+description = "Bruce's Quiz Party: runs a quiz party, its big screen, and the web client the players' phones join."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+quiz-format.workspace = true
+protocol.workspace = true
+anyhow.workspace = true
+clap = { version = "4.6", features = ["derive"] }
+dirs = "7"
+dioxus = { version = "0.7.10", features = ["desktop"] }
+dioxus-free-icons = { version = "0.10", features = ["lucide"] }
+serde_json.workspace = true
+# The web server which the phones join, its WebSocket, and the browser client's files, see net.rs.
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["full"] }
+futures-util = "0.3"
+# The join QR code, drawn as SVG.
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+# Game codes and the players' rejoin tokens.
+rand = "0.9"
+
+[dev-dependencies]
+# A WebSocket client, for the tests which join the party as a phone would.
+tokio-tungstenite = "0.30"
+serde_json.workspace = true
+
+[lib]
+name = "bruce_quiz_party"
+path = "src/lib.rs"
+
+[[bin]]
+name = "bruce-quiz-party"
+path = "src/main.rs"
+
+[features]
+default = ["desktop"]
+desktop = ["dioxus/desktop"]

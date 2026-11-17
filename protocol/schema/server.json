@@ -1,0 +1,906 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ServerMessage",
+  "description": "A message from the controller to a phone or browser.",
+  "oneOf": [
+    {
+      "description": "The player has joined or rejoined.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "The player's name, which the controller may have changed, e.g. to tell two players apart.",
+          "type": "string"
+        },
+        "player": {
+          "description": "The player's number in this party.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "token": {
+          "description": "The token to keep on the device and send with [`ClientMessage::Join`] to rejoin as the same player.",
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "const": "welcome"
+        }
+      },
+      "required": [
+        "type",
+        "player",
+        "token",
+        "name"
+      ]
+    },
+    {
+      "description": "The join or pairing was refused, and the connection will be closed.",
+      "type": "object",
+      "properties": {
+        "message": {
+          "description": "Why, in words, to show the player.",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why, for the client to act on.",
+          "$ref": "#/$defs/RejectReason"
+        },
+        "type": {
+          "type": "string",
+          "const": "rejected"
+        }
+      },
+      "required": [
+        "type",
+        "reason",
+        "message"
+      ]
+    },
+    {
+      "description": "Asks the client to answer with a [`ClientMessage::Pong`] at once.",
+      "type": "object",
+      "properties": {
+        "nonce": {
+          "description": "A number to send back.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        },
+        "type": {
+          "type": "string",
+          "const": "ping"
+        }
+      },
+      "required": [
+        "type",
+        "nonce"
+      ]
+    },
+    {
+      "description": "The party is waiting for the next quiz: who has joined.",
+      "type": "object",
+      "properties": {
+        "players": {
+          "description": "The players, in the order they joined.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlayerSummary"
+          }
+        },
+        "type": {
+          "type": "string",
+          "const": "lobby"
+        }
+      },
+      "required": [
+        "type",
+        "players"
+      ]
+    },
+    {
+      "description": "A question, sent to every player at the same moment. The clock starts as it is sent.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "question"
+        }
+      },
+      "$ref": "#/$defs/QuestionView",
+      "required": [
+        "type"
+      ]
+    },
+    {
+      "description": "The player's answer was taken. Any later answer to the same question is ignored.",
+      "type": "object",
+      "properties": {
+        "choice": {
+          "description": "The answer taken.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "question": {
+          "description": "The question answered.",
+          "$ref": "#/$defs/QuestionRef"
+        },
+        "type": {
+          "type": "string",
+          "const": "answer_locked"
+        }
+      },
+      "required": [
+        "type",
+        "question",
+        "choice"
+      ]
+    },
+    {
+      "description": "How many players have answered the question so far.",
+      "type": "object",
+      "properties": {
+        "answered": {
+          "description": "How many have answered.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "players": {
+          "description": "How many players are playing.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "question": {
+          "description": "The question being asked.",
+          "$ref": "#/$defs/QuestionRef"
+        },
+        "type": {
+          "type": "string",
+          "const": "answer_count"
+        }
+      },
+      "required": [
+        "type",
+        "question",
+        "answered",
+        "players"
+      ]
+    },
+    {
+      "description": "The question is over: the correct answer, how many chose each, and how the player did.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "reveal"
+        }
+      },
+      "$ref": "#/$defs/Reveal",
+      "required": [
+        "type"
+      ]
+    },
+    {
+      "description": "The standings after a question.",
+      "type": "object",
+      "properties": {
+        "standings": {
+          "description": "Every player, in the order of their places.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Standing"
+          }
+        },
+        "type": {
+          "type": "string",
+          "const": "standings"
+        }
+      },
+      "required": [
+        "type",
+        "standings"
+      ]
+    },
+    {
+      "description": "A leaderboard, at the end of a quiz: first the quiz's, then the party's.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "leaderboard"
+        }
+      },
+      "$ref": "#/$defs/Leaderboard",
+      "required": [
+        "type"
+      ]
+    },
+    {
+      "description": "The clock has stopped.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "paused"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    {
+      "description": "The clock has started again.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "resumed"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    {
+      "description": "The host removed this player from the party. The connection will be closed.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "removed"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    {
+      "description": "The party is over.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "party_ended"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    {
+      "description": "The phone is paired as a host: the token to keep, securely, and send with [`ClientMessage::HostConnect`].",
+      "type": "object",
+      "properties": {
+        "token": {
+          "description": "The host's token.",
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "const": "paired"
+        }
+      },
+      "required": [
+        "type",
+        "token"
+      ]
+    },
+    {
+      "description": "What a host phone shows: the whole state of the party, including the correct answer, sent whenever it changes.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "host_state"
+        }
+      },
+      "$ref": "#/$defs/HostState",
+      "required": [
+        "type"
+      ]
+    }
+  ],
+  "$defs": {
+    "HostPhase": {
+      "description": "What the party is doing, as a host phone sees it.",
+      "oneOf": [
+        {
+          "description": "Waiting for the host to choose the next quiz.",
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "const": "lobby"
+            }
+          },
+          "required": [
+            "phase"
+          ]
+        },
+        {
+          "description": "A question is being asked.",
+          "type": "object",
+          "properties": {
+            "answered": {
+              "description": "The players who have answered so far.",
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0
+              }
+            },
+            "correct": {
+              "description": "The index of the correct answer, which only hosts see while it is asked.",
+              "type": "integer",
+              "format": "uint8",
+              "maximum": 255,
+              "minimum": 0
+            },
+            "phase": {
+              "type": "string",
+              "const": "question"
+            },
+            "view": {
+              "description": "The question, as the players see it.",
+              "$ref": "#/$defs/QuestionView"
+            }
+          },
+          "required": [
+            "phase",
+            "view",
+            "correct",
+            "answered"
+          ]
+        },
+        {
+          "description": "The answer to a question is being shown.",
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "const": "reveal"
+            }
+          },
+          "$ref": "#/$defs/Reveal",
+          "required": [
+            "phase"
+          ]
+        },
+        {
+          "description": "The standings after a question are being shown.",
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "const": "standings"
+            }
+          },
+          "required": [
+            "phase"
+          ]
+        },
+        {
+          "description": "A leaderboard is being shown.",
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "const": "leaderboard"
+            },
+            "sorted_by": {
+              "$ref": "#/$defs/LeaderboardKind"
+            }
+          },
+          "required": [
+            "phase",
+            "sorted_by"
+          ]
+        },
+        {
+          "description": "The party is over.",
+          "type": "object",
+          "properties": {
+            "phase": {
+              "type": "string",
+              "const": "ended"
+            }
+          },
+          "required": [
+            "phase"
+          ]
+        }
+      ]
+    },
+    "HostState": {
+      "description": "Everything a host phone shows.",
+      "type": "object",
+      "properties": {
+        "paused": {
+          "description": "Whether the clock is stopped.",
+          "type": "boolean"
+        },
+        "phase": {
+          "description": "What the party is doing.",
+          "$ref": "#/$defs/HostPhase"
+        },
+        "players": {
+          "description": "The players.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlayerSummary"
+          }
+        },
+        "quizzes": {
+          "description": "The party's quizzes, to choose the next one from.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuizSummary"
+          }
+        }
+      },
+      "required": [
+        "quizzes",
+        "players",
+        "phase",
+        "paused"
+      ]
+    },
+    "Leaderboard": {
+      "description": "A leaderboard, the same information sorted by a quiz's ranks or by the party's.",
+      "type": "object",
+      "properties": {
+        "quizzes": {
+          "description": "The titles of the quizzes played so far, one column each.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rows": {
+          "description": "One row per player, in the order of `sorted_by`.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LeaderboardRow"
+          }
+        },
+        "sorted_by": {
+          "description": "Which ranking the rows are sorted by.",
+          "$ref": "#/$defs/LeaderboardKind"
+        }
+      },
+      "required": [
+        "sorted_by",
+        "quizzes",
+        "rows"
+      ]
+    },
+    "LeaderboardKind": {
+      "description": "Which ranking a leaderboard is sorted by.",
+      "oneOf": [
+        {
+          "description": "A quiz's ranking, by its index in [`Leaderboard::quizzes`], shown at the end of that quiz.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "quiz"
+            },
+            "quiz": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "kind",
+            "quiz"
+          ]
+        },
+        {
+          "description": "The party's ranking, by the total of every quiz.",
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "party"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        }
+      ]
+    },
+    "LeaderboardRow": {
+      "description": "A player's row in a leaderboard.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "The player's name.",
+          "type": "string"
+        },
+        "player": {
+          "description": "The player.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "quizzes": {
+          "description": "The player's score and place in each quiz played so far, none for a quiz they did not play.",
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/QuizResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "rank": {
+          "description": "The player's place in the party, from 1; players with the same total share a place.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "total": {
+          "description": "The player's total over the party.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "player",
+        "name",
+        "quizzes",
+        "total",
+        "rank"
+      ]
+    },
+    "PlayerResult": {
+      "description": "How a player did on a question.",
+      "type": "object",
+      "properties": {
+        "choice": {
+          "description": "The player's answer, if they answered.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "correct": {
+          "description": "Whether it was correct.",
+          "type": "boolean"
+        },
+        "points": {
+          "description": "The points it scored.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "quiz_rank": {
+          "description": "The player's place in this quiz so far, from 1; players with the same score share a place.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "quiz_score": {
+          "description": "The player's score in this quiz so far.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "correct",
+        "points",
+        "quiz_score",
+        "quiz_rank"
+      ]
+    },
+    "PlayerSummary": {
+      "description": "A player, as listed in the lobby and on a host phone.",
+      "type": "object",
+      "properties": {
+        "connected": {
+          "description": "Whether the player's phone is connected now.",
+          "type": "boolean"
+        },
+        "name": {
+          "description": "The player's name.",
+          "type": "string"
+        },
+        "player": {
+          "description": "The player's number.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "player",
+        "name",
+        "connected"
+      ]
+    },
+    "QuestionRef": {
+      "description": "A question of the party: its quiz and its place in it.",
+      "type": "object",
+      "properties": {
+        "index": {
+          "description": "The question's index in its quiz, from 0.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "quiz": {
+          "description": "The quiz's index among the party's quizzes.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "quiz",
+        "index"
+      ]
+    },
+    "QuestionView": {
+      "description": "A question as the players see it, without its answer.",
+      "type": "object",
+      "properties": {
+        "answers": {
+          "description": "The answers, from 2 to 6, each shown in the colour and shape of its position, see [`ANSWER_STYLES`].",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "image": {
+          "description": "The image's URL path on the controller's web server, if it is an image question.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "image_alt": {
+          "description": "A description of the image, for those who cannot see it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_points": {
+          "description": "The most a correct answer can score.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "number": {
+          "description": "The question's number in its quiz, from 1, for \"Question 3 of 10\".",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "question": {
+          "description": "Which question it is.",
+          "$ref": "#/$defs/QuestionRef"
+        },
+        "quiz_title": {
+          "description": "The quiz's title.",
+          "type": "string"
+        },
+        "remaining_ms": {
+          "description": "How long is left to answer, less than the time limit for a phone which rejoined during the question.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "text": {
+          "description": "The question's text, or the prompt of an image question.",
+          "type": "string"
+        },
+        "time_limit_ms": {
+          "description": "How long the players have to answer.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "total": {
+          "description": "How many questions the quiz has.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "question",
+        "quiz_title",
+        "number",
+        "total",
+        "text",
+        "answers",
+        "time_limit_ms",
+        "remaining_ms",
+        "max_points"
+      ]
+    },
+    "QuizResult": {
+      "description": "A player's score and place in a quiz.",
+      "type": "object",
+      "properties": {
+        "rank": {
+          "description": "The player's place, from 1; players with the same score share a place.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "score": {
+          "description": "The player's score.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "score",
+        "rank"
+      ]
+    },
+    "QuizSummary": {
+      "description": "One of the party's quizzes, as listed to choose from.",
+      "type": "object",
+      "properties": {
+        "played": {
+          "description": "Whether it has been played in this party.",
+          "type": "boolean"
+        },
+        "questions": {
+          "description": "How many questions it has.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "title": {
+          "description": "The quiz's title.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "questions",
+        "played"
+      ]
+    },
+    "RejectReason": {
+      "description": "Why a join or pairing was refused.",
+      "oneOf": [
+        {
+          "description": "The game code is not this party's.",
+          "type": "string",
+          "const": "wrong_game_code"
+        },
+        {
+          "description": "The client's protocol version is not the controller's: one of them needs updating.",
+          "type": "string",
+          "const": "wrong_protocol"
+        },
+        {
+          "description": "The name is empty or too long.",
+          "type": "string",
+          "const": "bad_name"
+        },
+        {
+          "description": "The party is not taking players now.",
+          "type": "string",
+          "const": "closed"
+        },
+        {
+          "description": "The pairing code or host token is not valid, e.g. as the party is not in setup mode.",
+          "type": "string",
+          "const": "not_authorised"
+        }
+      ]
+    },
+    "Reveal": {
+      "description": "The end of a question.",
+      "type": "object",
+      "properties": {
+        "correct": {
+          "description": "The index of the correct answer.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "counts": {
+          "description": "How many players chose each answer.",
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        },
+        "question": {
+          "description": "The question.",
+          "$ref": "#/$defs/QuestionRef"
+        },
+        "result": {
+          "description": "How this player did, sent only to players.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlayerResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "description": "A link to read more, e.g. the Wikipedia section the answer comes from, shown as a QR code.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "question",
+        "correct",
+        "counts"
+      ]
+    },
+    "Standing": {
+      "description": "A player's place after a question.",
+      "type": "object",
+      "properties": {
+        "last_points": {
+          "description": "The points the player scored on the last question.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "name": {
+          "description": "The player's name.",
+          "type": "string"
+        },
+        "player": {
+          "description": "The player.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "rank": {
+          "description": "The player's place, from 1; players with the same score share a place.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "score": {
+          "description": "The player's score in this quiz so far.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "player",
+        "name",
+        "score",
+        "rank",
+        "last_points"
+      ]
+    }
+  }
+}

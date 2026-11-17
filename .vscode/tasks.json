@@ -1,0 +1,53 @@
+{
+	// Things which only run a command, in a terminal: Terminal > Run Task. The debugging ones are in launch.json.
+	"version": "2.0.0",
+	"tasks": [
+		{
+			// Runs the controller with the sample quizzes, rebuilding it and reloading its pages as files change.
+			"label": "Controller: dx serve",
+			"type": "shell",
+			"command": "dx serve --args=\"--quizzes ../quizzes\"",
+			"options": { "cwd": "${workspaceFolder}/server" },
+			"problemMatcher": [],
+			"isBackground": true,
+			"presentation": { "reveal": "always", "panel": "dedicated" }
+		},
+		{
+			// Every test, then the dependencies' licences, advisories and sources.
+			"label": "Test and Check",
+			"type": "shell",
+			"command": "cargo test --workspace && swift test --package-path ios/QuizPartyKit && cargo deny check",
+			"options": { "cwd": "${workspaceFolder}" },
+			"problemMatcher": ["$rustc"],
+			"presentation": { "reveal": "always", "panel": "dedicated" }
+		},
+		{
+			// Builds the iOS app and installs it on the connected iPhone, see ios/install.sh.
+			"label": "iOS: Install on iPhone",
+			"type": "shell",
+			"command": "ios/install.sh",
+			"options": { "cwd": "${workspaceFolder}" },
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "dedicated" }
+		},
+		{
+			// A party without its window, code ABCD, which moves on by itself, for trying a phone's client.
+			"label": "Controller: Headless Party",
+			"type": "shell",
+			"command": "cargo run -p bruce-quiz-party --example headless -- quizzes",
+			"options": { "cwd": "${workspaceFolder}" },
+			"problemMatcher": [],
+			"isBackground": true,
+			"presentation": { "reveal": "always", "panel": "dedicated" }
+		},
+		{
+			// Regenerates the protocol's JSON Schema after a message is changed, see docs/Protocol.md.
+			"label": "Protocol: Update Schema",
+			"type": "shell",
+			"command": "UPDATE_SCHEMA=1 cargo test -p bruce-quiz-protocol",
+			"options": { "cwd": "${workspaceFolder}" },
+			"problemMatcher": [],
+			"presentation": { "reveal": "always", "panel": "dedicated" }
+		}
+	]
+}

@@ -1,0 +1,82 @@
+[
+  {
+    "type": "join",
+    "protocol": 1,
+    "game_code": "ABCD",
+    "name": "Sam"
+  },
+  {
+    "type": "join",
+    "protocol": 1,
+    "game_code": "ABCD",
+    "name": "",
+    "token": "0123456789abcdef"
+  },
+  {
+    "type": "answer",
+    "question": {
+      "quiz": 1,
+      "index": 2
+    },
+    "choice": 1
+  },
+  {
+    "type": "pong",
+    "nonce": 42
+  },
+  {
+    "type": "pair_host",
+    "protocol": 1,
+    "pairing_code": "XYZW1234",
+    "device_name": "Sam's iPhone"
+  },
+  {
+    "type": "host_connect",
+    "protocol": 1,
+    "token": "fedcba9876543210"
+  },
+  {
+    "type": "host",
+    "command": {
+      "command": "start_quiz",
+      "quiz": 1
+    }
+  },
+  {
+    "type": "host",
+    "command": {
+      "command": "next"
+    }
+  },
+  {
+    "type": "host",
+    "command": {
+      "command": "skip"
+    }
+  },
+  {
+    "type": "host",
+    "command": {
+      "command": "pause"
+    }
+  },
+  {
+    "type": "host",
+    "command": {
+      "command": "resume"
+    }
+  },
+  {
+    "type": "host",
+    "command": {
+      "command": "remove_player",
+      "player": 2
+    }
+  },
+  {
+    "type": "host",
+    "command": {
+      "command": "end_party"
+    }
+  }
+]
