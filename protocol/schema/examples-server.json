@@ -112,6 +112,11 @@
       "quiz": 1,
       "index": 2
     },
+    "progress": {
+      "quiz_title": "Flags of Asia",
+      "asked": 6,
+      "total": 20
+    },
     "correct": 0,
     "counts": [
       3,
@@ -133,6 +138,11 @@
       "quiz": 1,
       "index": 2
     },
+    "progress": {
+      "quiz_title": "Flags of Asia",
+      "asked": 6,
+      "total": 20
+    },
     "correct": 0,
     "counts": [
       3,
@@ -152,6 +162,11 @@
       "quiz": 1,
       "index": 2
     },
+    "progress": {
+      "quiz_title": "Flags of Asia",
+      "asked": 6,
+      "total": 20
+    },
     "correct": 0,
     "counts": [
       3,
@@ -170,7 +185,12 @@
         "rank": 1,
         "last_points": 850
       }
-    ]
+    ],
+    "progress": {
+      "quiz_title": "Flags of Asia",
+      "asked": 6,
+      "total": 20
+    }
   },
   {
     "type": "leaderboard",
@@ -227,6 +247,7 @@
   {
     "type": "host_state",
     "game_code": "ABCD",
+    "code_required": true,
     "quizzes": [
       {
         "title": "Around the World",
@@ -253,13 +274,14 @@
     "auto_advance": {
       "enabled": false,
       "reveal_secs": 5,
-      "standings_secs": 30,
+      "standings_secs": 5,
       "countdown_secs": 3
     }
   },
   {
     "type": "host_state",
     "game_code": "ABCD",
+    "code_required": false,
     "quizzes": [
       {
         "title": "Around the World",
@@ -310,7 +332,7 @@
     "auto_advance": {
       "enabled": true,
       "reveal_secs": 5,
-      "standings_secs": 30,
+      "standings_secs": 5,
       "countdown_secs": 3
     },
     "advance_in_ms": 12345,
@@ -319,6 +341,7 @@
   {
     "type": "host_state",
     "game_code": "ABCD",
+    "code_required": true,
     "quizzes": [
       {
         "title": "Around the World",
@@ -344,6 +367,11 @@
         "quiz": 1,
         "index": 2
       },
+      "progress": {
+        "quiz_title": "Flags of Asia",
+        "asked": 6,
+        "total": 20
+      },
       "correct": 0,
       "counts": [
         3,
@@ -363,13 +391,14 @@
     "auto_advance": {
       "enabled": false,
       "reveal_secs": 5,
-      "standings_secs": 30,
+      "standings_secs": 5,
       "countdown_secs": 3
     }
   },
   {
     "type": "host_state",
     "game_code": "ABCD",
+    "code_required": false,
     "quizzes": [
       {
         "title": "Around the World",
@@ -399,13 +428,18 @@
           "rank": 1,
           "last_points": 850
         }
-      ]
+      ],
+      "progress": {
+        "quiz_title": "Flags of Asia",
+        "asked": 6,
+        "total": 20
+      }
     },
     "paused": true,
     "auto_advance": {
       "enabled": true,
       "reveal_secs": 5,
-      "standings_secs": 30,
+      "standings_secs": 5,
       "countdown_secs": 3
     },
     "advance_in_ms": 12345,
@@ -414,6 +448,7 @@
   {
     "type": "host_state",
     "game_code": "ABCD",
+    "code_required": true,
     "quizzes": [
       {
         "title": "Around the World",
@@ -447,13 +482,14 @@
     "auto_advance": {
       "enabled": false,
       "reveal_secs": 5,
-      "standings_secs": 30,
+      "standings_secs": 5,
       "countdown_secs": 3
     }
   },
   {
     "type": "host_state",
     "game_code": "ABCD",
+    "code_required": false,
     "quizzes": [
       {
         "title": "Around the World",
@@ -480,7 +516,7 @@
     "auto_advance": {
       "enabled": true,
       "reveal_secs": 5,
-      "standings_secs": 30,
+      "standings_secs": 5,
       "countdown_secs": 3
     },
     "advance_in_ms": 12345,
@@ -489,6 +525,7 @@
   {
     "type": "host_state",
     "game_code": "ABCD",
+    "code_required": true,
     "quizzes": [
       {
         "title": "Around the World",
@@ -515,7 +552,7 @@
     "auto_advance": {
       "enabled": false,
       "reveal_secs": 5,
-      "standings_secs": 30,
+      "standings_secs": 5,
       "countdown_secs": 3
     }
   },

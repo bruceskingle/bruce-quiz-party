@@ -9,7 +9,7 @@ use std::{
 };
 
 use protocol::{
-    HostPhase, HostState, Leaderboard, LeaderboardKind, LeaderboardRow, PlayerId, PlayerResult, QuestionRef,
+    HostPhase, HostState, Leaderboard, LeaderboardKind, LeaderboardRow, PlayerId, PlayerResult, Progress, QuestionRef,
     QuestionView, QuizResult, QuizSummary, Reveal, Standing,
 };
 
@@ -435,6 +435,7 @@ impl Party {
             Phase::Reveal => self.reveal().map_or(HostPhase::Lobby, HostPhase::Reveal),
             Phase::Standings => HostPhase::Standings {
                 standings: self.standings(),
+                progress: self.progress(),
             },
             Phase::QuizLeaderboard | Phase::PartyLeaderboard => self
                 .current_leaderboard()
@@ -443,6 +444,7 @@ impl Party {
         };
         HostState {
             game_code: self.code.clone(),
+            code_required: self.code_required,
             quizzes: self
                 .quizzes
                 .iter()
@@ -550,6 +552,18 @@ impl Party {
             .is_some_and(|round| round.index + 1 >= self.quizzes[round.quiz].quiz.questions.len())
     }
 
+    /// How far through its quiz the party is: how many of its questions have been asked, counting the one being
+    /// asked or just closed.
+    pub fn progress(&self) -> Option<Progress> {
+        let round = self.round.as_ref()?;
+        let quiz = &self.quizzes[round.quiz].quiz;
+        Some(Progress {
+            quiz_title: quiz.title.clone(),
+            asked: round.index as u32 + 1,
+            total: quiz.questions.len() as u32,
+        })
+    }
+
     /// The reveal of the question just closed: the correct answer and how many chose each, without any player's
     /// own result.
     pub fn reveal(&self) -> Option<Reveal> {
@@ -561,6 +575,7 @@ impl Party {
         }
         Some(Reveal {
             question: question_ref(round),
+            progress: self.progress()?,
             correct: question.correct as u8,
             counts,
             source: question.source.clone(),

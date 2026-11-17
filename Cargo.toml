@@ -2,7 +2,7 @@
 # Code. The shared crates are specific to this app, so they live here rather than on crates.io.
 [workspace]
 resolver = "3"
-members = ["quiz-format", "protocol", "server"]
+members = ["quiz-format", "protocol", "server", "generator"]
 
 [workspace.package]
 version = "0.1.0"

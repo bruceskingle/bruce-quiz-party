@@ -6,7 +6,7 @@
 
 use bruce_quiz_protocol::{
     AutoAdvance, ClientMessage, HostCommand, HostPhase, HostState, Leaderboard, LeaderboardKind, LeaderboardRow,
-    PlayerResult, PlayerSummary, QuestionRef, QuestionView, QuizResult, QuizSummary, RejectReason, Reveal,
+    PlayerResult, PlayerSummary, Progress, QuestionRef, QuestionView, QuizResult, QuizSummary, RejectReason, Reveal,
     ServerMessage, Standing,
 };
 use serde::Serialize;
@@ -52,8 +52,14 @@ fn example_files_are_up_to_date() {
         remaining_ms: 12_345,
         max_points: 1000,
     };
+    let progress = Progress {
+        quiz_title: "Flags of Asia".into(),
+        asked: 6,
+        total: 20,
+    };
     let reveal = Reveal {
         question,
+        progress: progress.clone(),
         correct: 0,
         counts: vec![3, 1, 0],
         source: Some("https://en.wikipedia.org/wiki/Flag_of_Japan".into()),
@@ -199,6 +205,7 @@ fn example_files_are_up_to_date() {
                 rank: 1,
                 last_points: 850,
             }],
+            progress: Some(progress.clone()),
         },
         ServerMessage::Leaderboard(Leaderboard {
             sorted_by: LeaderboardKind::Quiz { quiz: 1 },
@@ -245,6 +252,7 @@ fn example_files_are_up_to_date() {
                 rank: 1,
                 last_points: 850,
             }],
+            progress: Some(progress.clone()),
         },
         HostPhase::Leaderboard(Leaderboard {
             sorted_by: LeaderboardKind::Party,
@@ -261,6 +269,7 @@ fn example_files_are_up_to_date() {
             let waiting = index % 2 == 1;
             ServerMessage::HostState(HostState {
                 game_code: "ABCD".into(),
+                code_required: !waiting,
                 quizzes: quizzes.clone(),
                 players: players.clone(),
                 phase,
@@ -315,4 +324,16 @@ fn messages_read_as_documented() {
         serde_json::to_string(&ServerMessage::Paused).unwrap(),
         r#"{"type":"paused"}"#
     );
+}
+
+/// The progress reads the same everywhere, in the plural except for a quiz of one question.
+#[test]
+fn progress_in_words() {
+    let progress = |asked, total| Progress {
+        quiz_title: "Flags".into(),
+        asked,
+        total,
+    };
+    assert_eq!(progress(6, 20).words(), "After 6 of 20 Questions");
+    assert_eq!(progress(1, 1).words(), "After 1 of 1 Question");
 }

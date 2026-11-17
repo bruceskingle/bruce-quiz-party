@@ -8,7 +8,7 @@
 //! ```
 //!
 //! With `--setup` after the folder, it starts in setup and prints the host pairing link, then starts the party once a
-//! phone has paired, for trying the iOS app's host mode.
+//! phone has paired, for trying the iOS app's host mode. With `--no-code`, players need no game code to join.
 
 use std::time::Duration;
 
@@ -21,7 +21,9 @@ use bruce_quiz_party::{
 fn main() -> anyhow::Result<()> {
     let mut args = std::env::args().skip(1);
     let folder = args.next().unwrap_or_else(|| "quizzes".into());
-    let setup = args.next().as_deref() == Some("--setup");
+    let flags: Vec<String> = args.collect();
+    let setup = flags.iter().any(|flag| flag == "--setup");
+    let no_code = flags.iter().any(|flag| flag == "--no-code");
     let quizzes: Vec<PartyQuiz> = quiz_format::load_library(folder.as_ref())?
         .into_iter()
         .filter_map(|(folder, quiz)| {
@@ -37,6 +39,7 @@ fn main() -> anyhow::Result<()> {
     if setup {
         party.phase = Phase::Setup;
     }
+    party.code_required = !no_code;
     let server = net::start(party)?;
     if setup {
         println!("Pair at {}", server.pairing_url());

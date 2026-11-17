@@ -21,6 +21,17 @@ pub const WEBSOCKET_PATH: &str = "/ws";
 /// The URL scheme which opens the iOS app, e.g. from the join QR code, `quizparty://join?host=…&port=…&code=…`.
 pub const URL_SCHEME: &str = "quizparty";
 
+/// The path of the party's [`PartyInfo`] on the controller's web server, which a client reads before joining.
+pub const PARTY_INFO_PATH: &str = "/party.json";
+
+/// What a client may know of the party before joining, served as JSON at [`PARTY_INFO_PATH`]: whether to ask for the
+/// game code. The code itself is never given, as it is what shows a player is in the room.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct PartyInfo {
+    /// Whether new players need the game code to join.
+    pub code_required: bool,
+}
+
 /// A player, as numbered by the controller for this party.
 pub type PlayerId = u32;
 
@@ -33,7 +44,8 @@ pub enum ClientMessage {
     Join {
         /// The client's [`PROTOCOL_VERSION`].
         protocol: u32,
-        /// The party's game code, as shown on the big screen.
+        /// The party's game code, as shown on the big screen; empty, or left out, if the party does not need one.
+        #[serde(default)]
         game_code: String,
         /// The name the player chose, shown on the big screen.
         name: String,
@@ -120,7 +132,7 @@ impl Default for AutoAdvance {
         Self {
             enabled: false,
             reveal_secs: 5,
-            standings_secs: 30,
+            standings_secs: 5,
             countdown_secs: 3,
         }
     }
@@ -189,6 +201,9 @@ pub enum ServerMessage {
     Standings {
         /// Every player, in the order of their places.
         standings: Vec<Standing>,
+        /// How far through its quiz the party is, for "After 6 of 20 Questions".
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        progress: Option<Progress>,
     },
     /// A leaderboard, at the end of a quiz: first the quiz's, then the party's.
     Leaderboard(Leaderboard),
@@ -278,6 +293,8 @@ pub struct QuestionView {
 pub struct Reveal {
     /// The question.
     pub question: QuestionRef,
+    /// How far through its quiz the party is, for "After 6 of 20 Questions".
+    pub progress: Progress,
     /// The index of the correct answer.
     pub correct: u8,
     /// How many players chose each answer.
@@ -288,6 +305,26 @@ pub struct Reveal {
     /// How this player did, sent only to players.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result: Option<PlayerResult>,
+}
+
+/// How far through its quiz the party is, after a question, shown on the reveal and the standings as "After 6 of 20
+/// Questions".
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Progress {
+    /// The quiz's title.
+    pub quiz_title: String,
+    /// How many of its questions have been asked, counting the one just closed.
+    pub asked: u32,
+    /// How many questions the quiz has.
+    pub total: u32,
+}
+
+impl Progress {
+    /// The progress in words, e.g. "After 6 of 20 Questions", as every screen shows it.
+    pub fn words(&self) -> String {
+        let questions = if self.total == 1 { "Question" } else { "Questions" };
+        format!("After {} of {} {questions}", self.asked, self.total)
+    }
 }
 
 /// How a player did on a question.
@@ -371,6 +408,8 @@ pub struct QuizResult {
 pub struct HostState {
     /// The party's game code, for the host to tell the players.
     pub game_code: String,
+    /// Whether new players need the game code to join.
+    pub code_required: bool,
     /// The party's quizzes, to choose the next one from.
     pub quizzes: Vec<QuizSummary>,
     /// The players.
@@ -423,6 +462,9 @@ pub enum HostPhase {
     Standings {
         /// Every player, in the order of their places.
         standings: Vec<Standing>,
+        /// How far through its quiz the party is, for "After 6 of 20 Questions".
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        progress: Option<Progress>,
     },
     /// A leaderboard is being shown.
     Leaderboard(Leaderboard),

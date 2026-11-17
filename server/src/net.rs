@@ -22,7 +22,8 @@ use axum::{
 };
 use futures_util::{SinkExt, StreamExt};
 use protocol::{
-    AutoAdvance, ClientMessage, HostCommand, PROTOCOL_VERSION, PlayerId, RejectReason, ServerMessage, WEBSOCKET_PATH,
+    AutoAdvance, ClientMessage, HostCommand, PARTY_INFO_PATH, PROTOCOL_VERSION, PartyInfo, PlayerId, RejectReason,
+    ServerMessage, WEBSOCKET_PATH,
 };
 use tokio::sync::{mpsc, watch};
 
@@ -154,6 +155,7 @@ impl Hub {
                 .collect(),
             Phase::Standings => vec![ServerMessage::Standings {
                 standings: party.standings(),
+                progress: party.progress(),
             }],
             Phase::QuizLeaderboard | Phase::PartyLeaderboard => party
                 .current_leaderboard()
@@ -248,6 +250,13 @@ impl Shared {
         self.changes.subscribe()
     }
 
+    /// Changes the quizzes the next party can be set up with, after the library has changed, e.g. a quiz was edited.
+    /// The quizzes of a party already set up are its own, and do not change.
+    pub fn set_library(&self, library: Vec<crate::party::PartyQuiz>) {
+        self.hub().party.library = library;
+        self.changed();
+    }
+
     /// Ends setup with the quizzes chosen from the library, so that players can join.
     pub fn start_party(&self, chosen: &[usize]) -> Result<(), String> {
         self.hub().party.start_party(chosen)?;
@@ -302,6 +311,18 @@ impl Shared {
             hub.broadcast_phase(now);
         }
         drop(hub);
+        self.changed();
+    }
+
+    /// Sets whether new players need the game code to join, for the host.
+    pub fn set_code_required(&self, required: bool) {
+        self.hub().party.code_required = required;
+        self.changed();
+    }
+
+    /// Changes the game code, for the host: the players already in the party stay, and rejoin with their tokens.
+    pub fn new_code(&self) {
+        self.hub().party.new_code();
         self.changed();
     }
 
@@ -418,12 +439,19 @@ pub struct Server {
 }
 
 impl Server {
-    /// The URL the join QR code holds: the browser client, with the game code, at the Mac's address on the local
-    /// network.
+    /// The URL the join QR code holds: the browser client at the Mac's address on the local network, with the game
+    /// code if the party needs it.
     pub fn join_url(&self) -> String {
-        let code = self.shared.hub().party.code.clone();
+        let (code, required) = {
+            let hub = self.shared.hub();
+            (hub.party.code.clone(), hub.party.code_required)
+        };
         let host = local_address().unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST));
-        format!("http://{host}:{}/?code={code}", self.port)
+        if required {
+            format!("http://{host}:{}/?code={code}", self.port)
+        } else {
+            format!("http://{host}:{}/", self.port)
+        }
     }
 
     /// The URL the host pairing QR code holds, shown only in setup: it opens the iOS app, which pairs as a host with
@@ -504,6 +532,7 @@ pub async fn serve(listener: tokio::net::TcpListener, shared: Arc<Shared>) -> st
             get(|| async { asset("text/css; charset=utf-8", STYLE_CSS) }),
         )
         .route(WEBSOCKET_PATH, get(websocket))
+        .route(PARTY_INFO_PATH, get(party_info))
         .route("/quiz/{quiz}/{*file}", get(quiz_image))
         .with_state(shared);
     axum::serve(listener, app).await
@@ -519,6 +548,15 @@ fn asset(content_type: &'static str, body: &'static str) -> Response {
         body,
     )
         .into_response()
+}
+
+/// Whether the party needs a game code, for the join screens to ask for it only if so; never cached, as the host may
+/// change it.
+async fn party_info(State(shared): State<Arc<Shared>>) -> Response {
+    let info = PartyInfo {
+        code_required: shared.hub().party.code_required,
+    };
+    ([(header::CACHE_CONTROL, "no-store")], axum::Json(info)).into_response()
 }
 
 /// One of a quiz's images, for the phones, only from inside the quiz's folder.

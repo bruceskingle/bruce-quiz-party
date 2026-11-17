@@ -21,6 +21,8 @@ struct JoinView: View {
     /// The name of the party chosen from those found, or its address.
     @State private var partyName = ""
     @State private var code = ""
+    /// Whether the party chosen needs the game code, as it says; until it says, or if it cannot, the code is asked for.
+    @State private var codeRequired = true
     @State private var name = JoinMemory().lastName
     @State private var typedAddress = ""
     @State private var scanning = false
@@ -52,6 +54,13 @@ struct JoinView: View {
             .navigationTitle("Bruce's Quiz Party")
             .navigationBarTitleDisplayMode(.inline)
         }
+        .task(id: address) {
+            // Asks the party chosen whether it needs the code, so that the code is asked for only if so.
+            codeRequired = true
+            if let address, let info = try? await address.info() {
+                codeRequired = info.codeRequired
+            }
+        }
         .onAppear { browser.start() }
         .onDisappear { browser.stop() }
         .onChange(of: scenePhase) { _, phase in
@@ -82,8 +91,22 @@ struct JoinView: View {
         }
     }
 
-    /// Choosing a party: those found nearby, scanning, or typing the address.
+    /// Choosing a party: the one last joined, those found nearby, scanning, or typing the address.
     @ViewBuilder private var choose: some View {
+        if let last = JoinMemory().lastParty {
+            Section {
+                Button {
+                    // The name and token remembered for the code rejoin as the same player, with their score.
+                    join(PlayerSession(address: last.address, code: last.code, name: ""))
+                } label: {
+                    Label(
+                        last.code.isEmpty ? "Rejoin the Party" : "Rejoin the Party · \(last.code)",
+                        systemImage: "arrow.uturn.backward.circle")
+                }
+            } footer: {
+                Text("Back to the party you were last in, at \(last.address.host).")
+            }
+        }
         Section {
             Button {
                 problem = nil
@@ -165,17 +188,8 @@ struct JoinView: View {
                 }
             }
         }
-        Section("Game Code") {
-            TextField("ABCD", text: $code)
-                .font(.title2.monospaced().bold())
-                .textInputAutocapitalization(.characters)
-                .autocorrectionDisabled()
-                .focused($focus, equals: .code)
-                .submitLabel(.next)
-                .onSubmit { focus = .name }
-                .onChange(of: code) { _, new in
-                    if new != new.uppercased() { code = new.uppercased() }
-                }
+        if codeRequired {
+            codeSection
         }
         Section("Your Name") {
             TextField("Name", text: $name)
@@ -196,11 +210,29 @@ struct JoinView: View {
                 Text("Join").font(.title2.bold()).frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(
-                code.trimmingCharacters(in: .whitespaces).isEmpty || name.trimmingCharacters(in: .whitespaces).isEmpty
-            )
+            .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets())
+        }
+    }
+
+    /// The game code, asked for if the party needs it.
+    private var codeSection: some View {
+        Section {
+            TextField("ABCD", text: $code)
+                .font(.title2.monospaced().bold())
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+                .focused($focus, equals: .code)
+                .submitLabel(.next)
+                .onSubmit { focus = .name }
+                .onChange(of: code) { _, new in
+                    if new != new.uppercased() { code = new.uppercased() }
+                }
+        } header: {
+            Text("Game Code")
+        } footer: {
+            Text("It's on the big screen.")
         }
     }
 
@@ -210,6 +242,10 @@ struct JoinView: View {
         problem = nil
         address = link.address
         partyName = "\(link.address.host):\(link.address.port)"
+        // The code last joined this party with, if the link does not say, so that the player can rejoin after leaving.
+        if link.code == nil, let last = JoinMemory().lastParty, last.address == link.address {
+            code = last.code
+        }
         if let linkCode = link.code {
             code = linkCode
             if JoinMemory().entry(code: linkCode) != nil {
@@ -225,7 +261,7 @@ struct JoinView: View {
                 }
             #endif
         }
-        focus = code.isEmpty ? .code : .name
+        focus = .name
     }
 
     private func useTypedAddress() {
@@ -258,7 +294,7 @@ struct JoinView: View {
     private func joinParty(_ address: PartyAddress) {
         let name = name.trimmingCharacters(in: .whitespaces)
         let code = code.trimmingCharacters(in: .whitespaces)
-        guard !name.isEmpty, !code.isEmpty else { return }
+        guard !name.isEmpty else { return }
         JoinMemory().lastName = name
         // With a token remembered for this code, the controller rejoins as the same player, with their score.
         join(PlayerSession(address: address, code: code, name: name))

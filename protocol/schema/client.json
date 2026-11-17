@@ -8,8 +8,9 @@
       "type": "object",
       "properties": {
         "game_code": {
-          "description": "The party's game code, as shown on the big screen.",
-          "type": "string"
+          "description": "The party's game code, as shown on the big screen; empty, or left out, if the party does not need one.",
+          "type": "string",
+          "default": ""
         },
         "name": {
           "description": "The name the player chose, shown on the big screen.",
@@ -36,7 +37,6 @@
       "required": [
         "type",
         "protocol",
-        "game_code",
         "name"
       ]
     },

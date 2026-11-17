@@ -19,20 +19,30 @@ Each project can be opened on its own in VS Code (and the iOS app in Xcode).
 - `server/`: the party controller, `bruce-quiz-party`, a Dioxus desktop app: runs the party, shows the big screen,
   edits quizzes, and serves the browser client. `src/party.rs` (players) and `src/game.rs` (asking, timing, scoring) are
   the game's state and rules alone, with the time passed in, tested without a network; `src/big_screen.rs` is what
-  the Mac and the TV show; `src/net.rs` is the web server and WebSocket (axum and Tokio, on a thread of its own), on
+  the Mac and the TV show; `src/library.rs` and `src/editor.rs` are the Quizzes page and its editor, which saves
+  only a quiz that reads back the same (`Quiz::problems` and `Quiz::tidied` in the format crate); `src/net.rs` is the web server and WebSocket (axum and Tokio, on a thread of its own), on
   port 8765 if free; `src/bonjour.rs` advertises it through macOS's own mDNS responder; `tests/join.rs` and
   `tests/game.rs` and `tests/host.rs` play the protocol over real sockets; `examples/headless.rs` runs a party
   without its window, and with `--setup`, waits in setup for a host phone to pair.
 - `web/`: the browser client, plain HTML, CSS and JavaScript with no build step, built into the controller with
   `include_str!`, so the controller must be rebuilt to serve a change.
 - `quizzes/`: sample quizzes, each a folder with a `quiz.md` and its images.
+- `art/`: the apps' icon, `icon.png`; `art/make-icons.sh` makes the iOS app's (`ios/QuizParty/Assets.xcassets`) and the
+  controller's (`server/icons`, named in its `Dioxus.toml`) from it, so run it after changing the picture.
 - `ios/`: the iOS app, SwiftUI, iOS 18 and later. `QuizParty/` is its screens, in a synchronised folder, so a new
   Swift file there needs no change to the project; `QuizPartyKit/` is a local Swift package of the rest (the
   messages, the connection, Bonjour browsing, the answer styles), so that `swift test` tests it on the Mac. Its tests
   read `protocol/schema/examples-*.json`, which the protocol's Rust tests write. Formatted with `swift-format`
   (`ios/.swift-format`).
-- Still to come: `generator/` (the quiz generator, which uses Claude Code and Wikipedia; Bruce's own tool, not part of
-  the controller).
+- `generator/`: the quiz generator, `bruce-quiz-generator`, a Dioxus desktop app for Bruce's own use. It reads
+  Wikipedia itself (`src/wikipedia.rs`: articles with their revisions, and only freely licensed Commons images), asks
+  Claude Code headless with no tools for the questions as JSON (`src/claude.rs`, `src/draft.rs`), and saves a draft
+  in a quizzes folder, or in a library checkout, rewriting its index and, if asked, committing and pushing with the
+  user's own git (`src/publish.rs`; where to save is remembered, `src/settings.rs`), crediting the articles used and
+  the images. `--topic "…"` writes one without the window. It uses the controller's `main.css`.
+- Libraries: a folder of quiz folders with `library.json` (`quiz_format::library`), on the web or on disk. The
+  controller's Quizzes page downloads from one (`server/src/download.rs`), Bruce's,
+  `bruceskingle/bruce-quiz-library`, by default, trusting only safe paths and quizzes which read.
 
 The shared crates are specific to this app, so they live in this repo's Cargo workspace rather than being published
 to crates.io, unlike Bruce's other libraries.

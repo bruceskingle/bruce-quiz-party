@@ -187,6 +187,17 @@
       "description": "The standings after a question.",
       "type": "object",
       "properties": {
+        "progress": {
+          "description": "How far through its quiz the party is, for \"After 6 of 20 Questions\".",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Progress"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "standings": {
           "description": "Every player, in the order of their places.",
           "type": "array",
@@ -450,6 +461,17 @@
               "type": "string",
               "const": "standings"
             },
+            "progress": {
+              "description": "How far through its quiz the party is, for \"After 6 of 20 Questions\".",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Progress"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "standings": {
               "description": "Every player, in the order of their places.",
               "type": "array",
@@ -509,6 +531,10 @@
           "description": "Whether the party moves on by itself, and how long it waits.",
           "$ref": "#/$defs/AutoAdvance"
         },
+        "code_required": {
+          "description": "Whether new players need the game code to join.",
+          "type": "boolean"
+        },
         "game_code": {
           "description": "The party's game code, for the host to tell the players.",
           "type": "string"
@@ -545,6 +571,7 @@
       },
       "required": [
         "game_code",
+        "code_required",
         "quizzes",
         "players",
         "phase",
@@ -734,6 +761,33 @@
         "player",
         "name",
         "connected"
+      ]
+    },
+    "Progress": {
+      "description": "How far through its quiz the party is, after a question, shown on the reveal and the standings as \"After 6 of 20\nQuestions\".",
+      "type": "object",
+      "properties": {
+        "asked": {
+          "description": "How many of its questions have been asked, counting the one just closed.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        },
+        "quiz_title": {
+          "description": "The quiz's title.",
+          "type": "string"
+        },
+        "total": {
+          "description": "How many questions the quiz has.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "quiz_title",
+        "asked",
+        "total"
       ]
     },
     "QuestionRef": {
@@ -935,6 +989,10 @@
             "minimum": 0
           }
         },
+        "progress": {
+          "description": "How far through its quiz the party is, for \"After 6 of 20 Questions\".",
+          "$ref": "#/$defs/Progress"
+        },
         "question": {
           "description": "The question.",
           "$ref": "#/$defs/QuestionRef"
@@ -960,6 +1018,7 @@
       },
       "required": [
         "question",
+        "progress",
         "correct",
         "counts"
       ]

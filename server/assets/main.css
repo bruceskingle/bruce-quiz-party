@@ -335,6 +335,32 @@ th {
     margin: 0 0 1rem 0;
 }
 
+/* The game code with the button for a new one, in setup and the lobby. */
+.code-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.code-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.setup-code {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+}
+
+/* A code which is not needed, as the party lets anyone join. */
+.setup-code.unused {
+    color: var(--muted);
+    text-decoration: line-through;
+}
+
 .lobby-players {
     list-style: none;
     padding: 0;
@@ -397,7 +423,7 @@ button.primary:hover {
     border-top: 1px solid var(--border);
 }
 
-.controls label, .auto-settings label {
+.controls label, .auto-settings label, .code-settings label {
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -639,6 +665,12 @@ button.big-button {
     align-items: center;
 }
 
+/* How far through the quiz, under the standings' heading. */
+.standings-progress {
+    margin-top: -8px;
+    font-size: 1.2rem;
+}
+
 table.standings {
     border-collapse: collapse;
     font-size: 1.6rem;
@@ -714,4 +746,210 @@ table.standings td.quiz-column {
     color: var(--accent);
     font-size: 2.6rem;
     font-weight: 800;
+}
+
+/* The quiz library's buttons: a new quiz under the list, and editing the quiz shown. */
+.new-quiz {
+    margin-top: 1rem;
+    width: 100%;
+}
+
+.preview-actions {
+    display: flex;
+    gap: 0.75rem;
+    float: right;
+}
+
+/* The quiz editor: a bar with Save along the top, then a section each for the quiz, its scoring, its questions and
+   its credits. */
+.editor {
+    max-width: 960px;
+}
+
+.editor-bar {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--bg);
+    padding: 0.25rem 0 0.75rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.editor-bar h1 {
+    margin: 0;
+}
+
+.problems {
+    border: 1px solid var(--invalid);
+    border-radius: var(--radius);
+    padding: 0.5rem 1rem;
+    margin-top: 1rem;
+    color: #ffb4b4;
+}
+
+.editor-section {
+    margin-top: 1.5rem;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.field-label {
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.editor input:not([type="radio"]):not([type="checkbox"]), .editor textarea, .editor select {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid #404045;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font: inherit;
+}
+
+.editor input:focus, .editor textarea:focus, .editor select:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.settings-fields {
+    display: flex;
+    gap: 2rem;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.settings-inputs {
+    flex: 1 1 280px;
+}
+
+.curve {
+    flex: 0 0 340px;
+}
+
+.curve-graph {
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+
+.curve-graph .axis {
+    stroke: var(--muted);
+    stroke-width: 1;
+}
+
+.curve-graph .curve-line {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2.5;
+}
+
+.curve-graph .curve-label {
+    fill: var(--muted);
+    font-size: 11px;
+}
+
+.curve-graph .curve-label.end {
+    text-anchor: end;
+}
+
+.editor-question {
+    margin-bottom: 1rem;
+}
+
+.question-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.question-heading button, .answer-editor button, .credit-row button {
+    padding: 4px 10px;
+}
+
+.answers-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+}
+
+.answer-editor {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.answer-editor input:not([type="radio"]) {
+    flex: 1 1 auto;
+}
+
+.answer-swatch {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+}
+
+.answer-swatch svg {
+    width: 18px;
+    height: 18px;
+    fill: #ffffff;
+}
+
+.own-settings {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0.5rem 0;
+}
+
+.credit-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+}
+
+.credit-row input {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+.credit-adds {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+/* An online library's quizzes, each with its Download button. */
+.library-address {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.library-address input {
+    flex: 1 1 auto;
+}
+
+.library-quiz {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.library-quiz-text {
+    flex: 1 1 auto;
 }

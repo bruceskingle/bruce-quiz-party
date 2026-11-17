@@ -28,7 +28,9 @@ struct HostView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Theme.background)
-            .navigationTitle(session.state.map { "Hosting · \($0.gameCode)" } ?? "Hosting")
+            .navigationTitle(
+                session.state.map { $0.codeRequired == false ? "Hosting" : "Hosting · \($0.gameCode)" } ?? "Hosting"
+            )
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -124,14 +126,17 @@ private struct HostControls: View {
             }
         case .reveal(let reveal):
             Section("The Answer") {
+                if let progress = reveal.progress {
+                    Text(progress.words).foregroundStyle(Theme.muted)
+                }
                 ForEach(Array(reveal.counts.enumerated()), id: \.offset) { position, count in
                     AnswerRow(
                         position: position, text: answerText(position), correct: position == Int(reveal.correct),
                         count: count)
                 }
             }
-        case .standings(let standings):
-            RankingSection(ranking: Ranking(standings))
+        case .standings(let standings, let progress):
+            RankingSection(ranking: Ranking(standings, progress: progress))
         case .leaderboard(let board):
             RankingSection(ranking: Ranking(board))
         case .ended:
@@ -308,6 +313,9 @@ private struct RankingSection: View {
 
     var body: some View {
         Section(ranking.title) {
+            if let progress = ranking.progress {
+                Text(progress).foregroundStyle(Theme.muted)
+            }
             ForEach(ranking.rows) { row in
                 HStack {
                     Text(ordinal(row.rank)).foregroundStyle(Theme.muted).frame(width: 44, alignment: .leading)

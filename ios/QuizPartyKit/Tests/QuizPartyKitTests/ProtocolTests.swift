@@ -50,6 +50,7 @@ private func object(_ data: Data) throws -> NSObject {
     #expect(plain.image == nil && plain.imageAlt == nil)
     guard case .reveal(let reveal) = messages[12] else { return }
     #expect(reveal.result?.quizRank == 2)
+    #expect(reveal.progress?.words == "After 6 of 20 Questions")
     guard case .reveal(let tooSlow) = messages[13] else { return }
     #expect(tooSlow.result?.choice == nil && tooSlow.source == nil)
     guard case .leaderboard(let board) = messages[16] else { return }
@@ -58,16 +59,22 @@ private func object(_ data: Data) throws -> NSObject {
     guard case .hostState(let state) = messages[23] else { return }
     #expect(state.phase == .lobby)
     #expect(state.gameCode == "ABCD" && state.advanceInMs == nil && state.next == nil)
+    #expect(state.codeRequired == true)
     guard case .hostState(let waiting) = messages[24] else { return }
     #expect(waiting.paused && waiting.autoAdvance.enabled && waiting.advanceInMs == 12_345)
     #expect(waiting.next == "Show Standings")
+    #expect(waiting.codeRequired == false)
     guard case .question(_, let correct, let answered) = waiting.phase else {
         Issue.record("No question: \(waiting.phase)")
         return
     }
     #expect(correct == 0 && answered == [1])
     guard case .hostState(let standings) = messages[26] else { return }
-    #expect(standings.phase == .standings([Standing(player: 1, name: "Sam", score: 2400, rank: 1, lastPoints: 850)]))
+    #expect(
+        standings.phase
+            == .standings(
+                [Standing(player: 1, name: "Sam", score: 2400, rank: 1, lastPoints: 850)],
+                progress: Progress(quizTitle: "Flags of Asia", asked: 6, total: 20)))
     guard case .hostState(let setup) = messages[29] else { return }
     #expect(setup.phase == .setup)
 }
@@ -109,7 +116,14 @@ private func object(_ data: Data) throws -> NSObject {
     #expect(app == JoinLink(address: PartyAddress(host: "mac.local", port: 9000), code: "WXYZ"))
     #expect(JoinLink(scanned: "https://en.wikipedia.org/wiki/Flag_of_Japan") == nil)
     #expect(JoinLink(scanned: "http://example.com/") == nil, "a web page without a code")
+    let open = try #require(JoinLink(scanned: "http://192.168.1.20:8765/"), "a party which needs no code")
+    #expect(open == JoinLink(address: PartyAddress(host: "192.168.1.20", port: 8765), code: nil))
+    #expect(JoinLink(scanned: "http://192.168.1.20:8765/page") == nil, "not the front page")
     #expect(JoinLink(scanned: "quizparty://join?host=mac.local") == nil, "no port")
+}
+
+@Test func readsWhetherThePartyNeedsItsCode() throws {
+    #expect(try PartyInfo.decode(Data(#"{"code_required":false}"#.utf8)) == PartyInfo(codeRequired: false))
 }
 
 @Test func readsTypedAddresses() {
@@ -161,6 +175,7 @@ private func object(_ data: Data) throws -> NSObject {
     session.handle(messages[0])  // welcome
     #expect(session.screen == .lobby)
     #expect(memory.entry(code: "ABCD") == JoinMemory.Entry(token: "0123456789abcdef", name: "Sam"))
+    #expect(memory.lastParty == .init(address: PartyAddress(host: "127.0.0.1", port: 1), code: "ABCD"))
     session.handle(messages[8])  // a question
     #expect(session.screen == .question)
     #expect(session.canAnswer(at: Date()))
@@ -247,4 +262,23 @@ private final class MemoryTokens: HostTokenStore, @unchecked Sendable {
     #expect(session.nextUp?.title == "Next question" && wait > 2.9 && wait <= 3)
     session.handle(messages[15])  // the standings
     #expect(session.nextUp == nil)
+    guard case .ranking(let ranking) = session.screen else {
+        Issue.record("No standings: \(session.screen)")
+        return
+    }
+    #expect(ranking.progress == "After 6 of 20 Questions")
+}
+
+@MainActor
+@Test func thePartyLastJoinedIsRememberedUntilItsCodeIsRefused() throws {
+    let suite = "QuizPartyKitTests-\(UUID().uuidString)"
+    defer { UserDefaults().removePersistentDomain(forName: suite) }
+    let memory = JoinMemory(suite: suite)
+    let address = PartyAddress(host: "192.168.1.20", port: 8765)
+    let session = PlayerSession(address: address, code: "", name: "Sam", memory: memory)
+    session.handle(.welcome(player: 1, token: "0123456789abcdef", name: "Sam"))
+    #expect(memory.lastParty == .init(address: address, code: ""), "a party which needs no code")
+    let again = PlayerSession(address: address, code: "", name: "", memory: memory)
+    again.handle(.rejected(reason: .wrongGameCode, message: "This party needs its game code."))
+    #expect(memory.lastParty == nil, "the code is forgotten, and with it the party")
 }

@@ -25,8 +25,11 @@ Change `PROTOCOL_VERSION` whenever a change means an old client would misread th
 - **WebSocket**: `ws://<mac>:<port>/ws`. The same web server serves the browser client.
 - **Bonjour**: the controller advertises `_quizparty._tcp` under the Mac's name, with the TXT record
   `protocol=1 path=/ws`, for the iOS app to find it. The game code is not advertised: a player still needs it from the
-  big screen, so that only those in the room can join.
-- **Join QR code**: the browser client's URL with the game code, `http://<mac>:<port>/?code=ABCD`.
+  big screen, so that only those in the room can join, unless the host has chosen a party which needs no code.
+- **Party info**: `GET /party.json` gives `{"code_required": true}`, for the join screens to ask for the game code
+  only if the party needs it. It never gives the code itself.
+- **Join QR code**: the browser client's URL with the game code, `http://<mac>:<port>/?code=ABCD`, or without it,
+  `http://<mac>:<port>/`, for a party which needs no code.
 - **Host pairing QR code**: `quizparty://host?host=<mac>&port=<port>&pair=<code>`, shown on the Mac only while the
   party is set up. It opens the iOS app, which pairs as a host with the one-time code: the code changes as soon as a
   phone pairs, and pairing is refused once the party has started.
@@ -41,7 +44,7 @@ From a client:
 
 | `type` | Meaning |
 |---|---|
-| `join` | Joins as a player with `protocol`, `game_code` and `name`, or rejoins with the `token` from a `welcome`. |
+| `join` | Joins as a player with `protocol`, `game_code` and `name`, or rejoins with the `token` from a `welcome`, which needs no code. `game_code` may be empty or left out if the party needs none. |
 | `answer` | Answers `question` (`{quiz, index}`) with `choice`, from 0. Only the first answer counts. |
 | `pong` | Answers a `ping` at once, with its `nonce`. |
 | `pair_host` | Pairs the iOS app as a host with the one-time `pairing_code` from the setup QR code. |
@@ -66,7 +69,7 @@ From the controller:
 | `paused`, `resumed` | The clock stopped or started again. While it is stopped, answers are refused; when it starts, the question is sent again with the time it had left. |
 | `removed`, `party_ended` | The player was removed, or the party is over. |
 | `paired` | The phone is paired as a host: the `token` to keep, securely. |
-| `host_state` | Everything a host phone shows, whenever it changes: the game code, the quizzes, the players, the phase with the correct answer and who has answered, whether it is paused, auto-advance, and what Next does. |
+| `host_state` | Everything a host phone shows, whenever it changes: the game code and whether it is needed, the quizzes, the players, the phase with the correct answer and who has answered, whether it is paused, auto-advance, and what Next does. |
 
 For example:
 

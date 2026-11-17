@@ -4,6 +4,8 @@ name = "Bruces Quiz Party"
 [bundle]
 identifier = "org.skingle.bruce-quiz-party"
 publisher = "BruceSkingle"
+# The icons, made from art/icon.png by art/make-icons.sh.
+icon = ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns"]
 
 [web.app]
 title = "Bruce's Quiz Party"

@@ -23,8 +23,8 @@ const SHAPE_PATHS = [
 
 const params = new URLSearchParams(location.search);
 const state = {
-  /** The game code, from the link or typed in. */
-  code: (params.get("code") || "").toUpperCase(),
+  /** The game code, from the link, or the one last joined with, or typed in; empty if the party needs none. */
+  code: (params.get("code") || lastCode()).toUpperCase(),
   /** The player's name, as typed, kept to rejoin. */
   name: "",
   /** The player's number once joined. */
@@ -64,6 +64,21 @@ function show(id) {
 function showMessage(text) {
   $("message-text").textContent = text;
   show("message");
+}
+
+/** The game code last joined with, so that the player can come back to the page and rejoin without the link. */
+function lastCode() {
+  try {
+    return localStorage.getItem("quizparty:last-code") || "";
+  } catch {
+    return "";
+  }
+}
+
+function rememberLastCode(code) {
+  try {
+    localStorage.setItem("quizparty:last-code", code);
+  } catch {}
 }
 
 /** The key the rejoin token and name are kept under: one per game code, so that a new party starts afresh. */
@@ -181,12 +196,18 @@ function receive(message) {
       state.player = message.player;
       state.reconnects = 0;
       remember(state.code, message.token, state.name || message.name);
+      rememberLastCode(state.code);
       $("me").textContent = message.name;
       show("lobby");
       break;
     case "rejected":
       state.stayConnected = false;
-      if (message.reason === "wrong_game_code") forget(state.code);
+      if (message.reason === "wrong_game_code") {
+        // The host may have started asking for a code since the page was opened.
+        showCodeField(true);
+        forget(state.code);
+        if (lastCode() === state.code) rememberLastCode("");
+      }
       $("join-error").textContent = message.message;
       $("join-error").hidden = false;
       $("join-form").querySelector("button").disabled = false;
@@ -210,7 +231,7 @@ function receive(message) {
       showResult(message);
       break;
     case "standings":
-      showStandings(message.standings);
+      showStandings(message.standings, message.progress);
       break;
     case "leaderboard":
       showLeaderboard(message);
@@ -338,6 +359,7 @@ function showResult(reveal) {
   const result = reveal.result;
   const panel = $("result-panel");
   const correctText = state.answers[reveal.correct] || "";
+  $("result-progress").textContent = progressWords(reveal.progress);
   if (!result) {
     panel.className = "result-panel";
     $("result-title").textContent = "The answer was";
@@ -355,12 +377,19 @@ function showResult(reveal) {
   show("result");
 }
 
-/** Shows the standings: the top few, and where this player is. */
-function showStandings(standings) {
+/** How far through its quiz the party is, e.g. "After 6 of 20 Questions", as the protocol's Progress::words says it. */
+function progressWords(progress) {
+  if (!progress) return "";
+  return "After " + progress.asked + " of " + progress.total + (progress.total === 1 ? " Question" : " Questions");
+}
+
+/** Shows the standings: the top few, how far through the quiz, and where this player is. */
+function showStandings(standings, progress) {
   showRanking(
     "Standings",
     standings.map((standing) => ({ player: standing.player, name: standing.name, score: standing.score, rank: standing.rank })),
   );
+  $("standings-progress").textContent = progressWords(progress);
 }
 
 /** Shows a leaderboard, the quiz's or the party's: the top few, and where this player is. */
@@ -382,6 +411,7 @@ function showLeaderboard(board) {
 /** Shows a ranking under a title: the top five, and this player's place and score. */
 function showRanking(title, rows) {
   $("standings-title").textContent = title;
+  $("standings-progress").textContent = "";
   const me = rows.find((row) => row.player === state.player);
   $("standings-me").textContent = me ? "You're " + ordinal(me.rank) + " with " + me.score + " points" : "";
   $("standings-list").replaceChildren(
@@ -428,12 +458,24 @@ $("join-form").addEventListener("submit", (event) => {
   connect();
 });
 
-// With a remembered token for this party, rejoin at once; otherwise ask for a name.
+/** Asks for the game code only if the party needs it, as the controller says; if it cannot be asked, the code is asked
+ * for, as it would be refused without it. */
+function showCodeField(required) {
+  $("code-field").hidden = !required;
+}
+
+fetch("/party.json", { cache: "no-store" })
+  .then((response) => response.json())
+  .then((info) => showCodeField(info.code_required !== false))
+  .catch(() => showCodeField(true));
+
+// With a remembered token for this party's code, or for a party with none, rejoin at once; otherwise ask for a name.
 $("code").value = state.code;
-if (state.code && remembered(state.code)) {
+if (remembered(state.code)) {
   showMessage("Joining…");
   connect();
 } else {
   show("join");
-  (state.code ? $("name") : $("code")).focus();
+  // The name, as the code may not be needed; a party which needs it says so if it is left out.
+  $("name").focus();
 }

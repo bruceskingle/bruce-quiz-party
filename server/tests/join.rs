@@ -212,6 +212,24 @@ async fn serves_the_browser_client() {
     }
 }
 
+#[tokio::test]
+async fn says_whether_the_party_needs_its_code() {
+    let (shared, port) = start().await;
+    let get = || async {
+        let mut stream = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+        let request = "GET /party.json HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
+        stream.write_all(request.as_bytes()).await.unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).await.unwrap();
+        response
+    };
+    let response = get().await;
+    assert!(response.ends_with(r#"{"code_required":true}"#), "{response}");
+    assert!(!response.contains("ABCD"), "the code itself is never given");
+    shared.set_code_required(false);
+    assert!(get().await.ends_with(r#"{"code_required":false}"#));
+}
+
 /// The browser client's protocol version is the protocol crate's.
 #[test]
 fn the_browser_client_speaks_this_protocol() {

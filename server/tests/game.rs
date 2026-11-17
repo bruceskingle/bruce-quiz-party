@@ -161,10 +161,14 @@ async fn plays_a_quiz() {
     assert_eq!(next, "Standings");
     assert!((2000..=3000).contains(&in_ms), "{in_ms}");
     shared.next();
-    let ServerMessage::Standings { standings } = receive(&mut jo).await else {
+    let ServerMessage::Standings { standings, progress } = receive(&mut jo).await else {
         panic!("no standings")
     };
     assert_eq!(standings[0].name, "Sam");
+    assert_eq!(
+        progress.map(|progress| progress.words()).as_deref(),
+        Some("After 1 of 2 Questions")
+    );
     // From here, without the countdown.
     shared.hub().party.auto_advance.countdown_secs = 0;
 

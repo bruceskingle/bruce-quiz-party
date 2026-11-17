@@ -131,7 +131,7 @@ impl Quiz {
 }
 
 /// Checks that settings are ones a question can be run with.
-fn check_settings(settings: &Settings) -> Result<(), String> {
+pub(crate) fn check_settings(settings: &Settings) -> Result<(), String> {
     if settings.time_limit == 0 {
         return Err("the time limit must be at least 1 second".into());
     }

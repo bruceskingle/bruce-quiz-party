@@ -164,8 +164,8 @@ public enum ServerMessage: Decodable, Equatable, Sendable {
     case answerCount(question: QuestionRef, answered: UInt32, players: UInt32)
     /// The correct answer, how many chose each, and how this player did.
     case reveal(Reveal)
-    /// The places after a question.
-    case standings([Standing])
+    /// The places after a question, and how far through the quiz.
+    case standings([Standing], progress: Progress?)
     /// A leaderboard at the end of a quiz, the quiz's and then the party's.
     case leaderboard(Leaderboard)
     /// The party will move on soon: what comes next, e.g. "Next question", and how long until then.
@@ -184,7 +184,7 @@ public enum ServerMessage: Decodable, Equatable, Sendable {
 
     private enum Keys: String, CodingKey {
         case type, player, token, name, reason, message, nonce, players, question, choice, answered, standings, next
-        case inMs
+        case inMs, progress
     }
 
     public init(from decoder: Decoder) throws {
@@ -213,7 +213,10 @@ public enum ServerMessage: Decodable, Equatable, Sendable {
                 answered: try container.decode(UInt32.self, forKey: .answered),
                 players: try container.decode(UInt32.self, forKey: .players))
         case "reveal": self = .reveal(try Reveal(from: decoder))
-        case "standings": self = .standings(try container.decode([Standing].self, forKey: .standings))
+        case "standings":
+            self = .standings(
+                try container.decode([Standing].self, forKey: .standings),
+                progress: try container.decodeIfPresent(Progress.self, forKey: .progress))
         case "leaderboard": self = .leaderboard(try Leaderboard(from: decoder))
         case "countdown":
             self = .countdown(
@@ -277,6 +280,8 @@ public struct QuestionView: Decodable, Equatable, Sendable {
 /// The end of a question.
 public struct Reveal: Decodable, Equatable, Sendable {
     public var question: QuestionRef
+    /// How far through the quiz, nil from a controller too old to say.
+    public var progress: Progress?
     /// The index of the correct answer.
     public var correct: UInt8
     /// How many chose each answer.
@@ -285,6 +290,26 @@ public struct Reveal: Decodable, Equatable, Sendable {
     public var source: String?
     /// How this player did, sent only to players.
     public var result: PlayerResult?
+}
+
+/// How far through its quiz the party is, after a question.
+public struct Progress: Decodable, Equatable, Sendable {
+    public var quizTitle: String
+    /// How many of its questions have been asked, counting the one just closed.
+    public var asked: UInt32
+    /// How many questions the quiz has.
+    public var total: UInt32
+
+    public init(quizTitle: String, asked: UInt32, total: UInt32) {
+        self.quizTitle = quizTitle
+        self.asked = asked
+        self.total = total
+    }
+
+    /// The progress in words, e.g. "After 6 of 20 Questions", as the controller's `Progress::words` says it.
+    public var words: String {
+        "After \(asked) of \(total) \(total == 1 ? "Question" : "Questions")"
+    }
 }
 
 /// How a player did on a question.
@@ -357,6 +382,8 @@ public struct QuizResult: Decodable, Equatable, Sendable {
 /// Everything a host phone shows.
 public struct HostState: Decodable, Equatable, Sendable {
     public var gameCode: String
+    /// Whether new players need the game code to join; nil from a controller too old to say, which always needs it.
+    public var codeRequired: Bool?
     public var quizzes: [QuizSummary]
     public var players: [PlayerSummary]
     public var phase: HostPhase
@@ -382,12 +409,12 @@ public enum HostPhase: Decodable, Equatable, Sendable {
     case lobby
     case question(view: QuestionView, correct: UInt8, answered: [PlayerID])
     case reveal(Reveal)
-    case standings([Standing])
+    case standings([Standing], progress: Progress?)
     case leaderboard(Leaderboard)
     case ended
 
     private enum Keys: String, CodingKey {
-        case phase, view, correct, answered, standings
+        case phase, view, correct, answered, standings, progress
     }
 
     public init(from decoder: Decoder) throws {
@@ -401,7 +428,10 @@ public enum HostPhase: Decodable, Equatable, Sendable {
                 correct: try container.decode(UInt8.self, forKey: .correct),
                 answered: try container.decode([PlayerID].self, forKey: .answered))
         case "reveal": self = .reveal(try Reveal(from: decoder))
-        case "standings": self = .standings(try container.decode([Standing].self, forKey: .standings))
+        case "standings":
+            self = .standings(
+                try container.decode([Standing].self, forKey: .standings),
+                progress: try container.decodeIfPresent(Progress.self, forKey: .progress))
         case "leaderboard": self = .leaderboard(try Leaderboard(from: decoder))
         case "ended": self = .ended
         case let phase:

@@ -5,8 +5,9 @@ their phones, in the browser or the iOS app, and answer multiple-choice question
 
 **Status:** early development. A party of several quizzes can be played with phones in the browser or the iOS app:
 questions, timed answers, the reveal, the standings, and each quiz's and the party's leaderboards. The host can run it
-from the Mac or a paired iPhone, pause it, remove players, end it, or let it move on by itself. The quiz editor is
-next. See [docs/Plan.md](docs/Plan.md) for the plan and its milestones.
+from the Mac or a paired iPhone, pause it, remove players, end it, or let it move on by itself. Quizzes can be
+written and edited on the Mac, or drafted from Wikipedia by the quiz generator. Quizzes can be shared in a library, and downloaded from one on the
+Quizzes page. See [docs/Plan.md](docs/Plan.md) for the plan and its milestones.
 
 ## Running
 
@@ -20,7 +21,8 @@ dx serve --args="--quizzes ../quizzes"
 
 The Party page starts in setup: choose the party's quizzes and whether it moves on by itself, and pair your iPhone as
 a host by scanning the code shown there, if you like. Then press Start the Party for the lobby: phones on the same
-Wi-Fi scan its QR code, or go to the address under it and type the game code. Press Start beside a quiz to play it;
+Wi-Fi scan its QR code, or go to the address under it and type the game code, unless you chose in setup that no code
+is needed. The code stays the same until you press New Code. Press Start beside a quiz to play it;
 the buttons at the bottom, or the host phone, move on, pause, or end the party. The first time, macOS asks whether the app may accept incoming network connections: choose Allow, or the
 phones cannot reach it.
 
@@ -41,7 +43,27 @@ in `Signing.xcconfig`: a paid Apple Developer team's installs last a year, a fre
 
 ## Quizzes
 
-Each quiz is a folder with a Markdown file, `quiz.md`, and its images, made to be edited by hand: see
+The Quizzes page lists the quizzes, with Edit and New Quiz: the editor has a graph of the points a correct answer
+scores as time passes, for choosing the scoring, and saves the quiz as a person would write it. A question's image is
+chosen from the images in the quiz's folder; Show in Finder opens it to add them.
+
+The quiz generator, a separate app for drafting quizzes, reads Wikipedia's articles on a topic and has Claude write
+the questions, using Claude Code on your own subscription (`claude` on the PATH, or the copy that comes with its VS
+Code extension). It credits the articles and images under CC BY-SA, using only freely licensed images, and saves the
+draft in the quizzes folder, to review in the controller's editor:
+
+```sh
+cd generator
+dx serve
+```
+
+The generator saves either into a quizzes folder, to play the quiz there, or into a local checkout of a library's git
+repository, committing and pushing it if you ask, to share it. A library is a folder of quizzes with an index,
+`library.json`, on the web or on disk: the controller's Quizzes page lists Bruce's,
+[bruce-quiz-library](https://github.com/bruceskingle/bruce-quiz-library), or any other you give it, and downloads
+quizzes from it.
+
+Each quiz is a folder with a Markdown file, `quiz.md`, and its images, which can be edited by hand too: see
 [docs/QuizFormat.md](docs/QuizFormat.md), and [quizzes/around-the-world](quizzes/around-the-world/quiz.md) for an
 example. Quizzes drawn from Wikipedia are published under CC BY-SA 4.0, with credits for their articles and images.
 

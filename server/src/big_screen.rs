@@ -190,7 +190,7 @@ fn Controls(server: Server, phase: Phase) -> Element {
 /// phones with a one-time QR code, which is never shown once the party starts.
 #[component]
 fn SetupScreen(server: Server) -> Element {
-    let (library, hosts, auto): (Vec<(String, usize)>, Vec<String>, AutoAdvance) = {
+    let (library, hosts, auto, code, code_required): (Vec<(String, usize)>, Vec<String>, AutoAdvance, String, bool) = {
         let hub = server.shared.hub();
         let party = &hub.party;
         (
@@ -201,6 +201,8 @@ fn SetupScreen(server: Server) -> Element {
                 .collect(),
             party.hosts.iter().map(|host| host.name.clone()).collect(),
             party.auto_advance,
+            party.code.clone(),
+            party.code_required,
         )
     };
     let count = library.len();
@@ -241,6 +243,8 @@ fn SetupScreen(server: Server) -> Element {
                         }
                     }
                 }
+                h2 { "Joining" }
+                CodeSettings { server: server.clone(), code, code_required }
                 h2 { "Moving On" }
                 AutoAdvanceSettings { server: server.clone(), auto }
                 div { class: "setup-start",
@@ -271,6 +275,45 @@ fn SetupScreen(server: Server) -> Element {
                 }
             }
         }
+    }
+}
+
+/// Whether players need the game code to join, and a button for a new code. The code is made as the app starts and
+/// kept from party to party, so that phones which remember it can rejoin, until the host asks for a new one.
+#[component]
+fn CodeSettings(server: Server, code: String, code_required: bool) -> Element {
+    let shared = server.shared.clone();
+    rsx! {
+        div { class: "code-settings",
+            label {
+                input {
+                    r#type: "checkbox",
+                    checked: code_required,
+                    onchange: move |event: FormEvent| shared.set_code_required(event.checked()),
+                }
+                "Players need the game code to join"
+            }
+            div { class: "code-row",
+                span { class: if code_required { "setup-code" } else { "setup-code unused" }, "{code}" }
+                NewCodeButton { server: server.clone() }
+            }
+            p { class: "muted small",
+                if code_required {
+                    "The code stays the same from party to party until you ask for a new one. Players already in the party stay in."
+                } else {
+                    "Anyone on this network who can reach the Mac can join, without a code."
+                }
+            }
+        }
+    }
+}
+
+/// Asks for a new game code. The players already in the party stay, as their phones rejoin without it.
+#[component]
+fn NewCodeButton(server: Server) -> Element {
+    let shared = server.shared.clone();
+    rsx! {
+        button { onclick: move |_| shared.new_code(), "New Code" }
     }
 }
 
@@ -370,11 +413,14 @@ fn EndedScreen(server: Server) -> Element {
     }
 }
 
+/// A quiz as the lobby lists it: its title, how many questions it has, and whether it has been played.
+type LobbyQuiz = (String, usize, bool);
+
 /// The lobby: the join QR code and URL, the game code, the players, and the quizzes to start.
 #[component]
 fn Lobby(server: Server) -> Element {
     let url = server.join_url();
-    let (code, players, quizzes): (String, Vec<PlayerSummary>, Vec<(String, usize, bool)>) = {
+    let (code, players, quizzes): (Option<String>, Vec<PlayerSummary>, Vec<LobbyQuiz>) = {
         let hub = server.shared.hub();
         let party = &hub.party;
         let quizzes = party
@@ -389,7 +435,7 @@ fn Lobby(server: Server) -> Element {
                 )
             })
             .collect();
-        (party.code.clone(), party.lobby(), quizzes)
+        (party.code_required.then(|| party.code.clone()), party.lobby(), quizzes)
     };
     let qr = crate::qr::svg(&url).unwrap_or_default();
     let mut error = use_signal(|| None::<String>);
@@ -401,8 +447,15 @@ fn Lobby(server: Server) -> Element {
                 p { class: "join-url", "{url}" }
             }
             div { class: "lobby-main",
-                p { class: "muted", "Scan the code to join, or go to the address and enter" }
-                p { class: "game-code", "{code}" }
+                if let Some(code) = code {
+                    p { class: "muted", "Scan the code to join, or go to the address and enter" }
+                    div { class: "code-row",
+                        p { class: "game-code", "{code}" }
+                        NewCodeButton { server: server.clone() }
+                    }
+                } else {
+                    p { class: "muted", "Scan the code to join, or go to the address: no game code needed." }
+                }
                 h2 { "Players ({players.len()})" }
                 if players.is_empty() {
                     p { class: "muted", "Waiting for players…" }
@@ -515,12 +568,7 @@ fn RevealScreen(server: Server) -> Element {
     };
     let quiz = &party.quizzes[round.quiz].quiz;
     let question = quiz.questions[round.index].clone();
-    let heading = format!(
-        "{} · Question {} of {}",
-        quiz.title,
-        round.index + 1,
-        quiz.questions.len()
-    );
+    let heading = format!("{} · {}", reveal.progress.quiz_title, reveal.progress.words());
     drop(hub);
     let Reveal {
         correct,
@@ -574,10 +622,20 @@ fn RevealScreen(server: Server) -> Element {
 /// The standings after a question.
 #[component]
 fn StandingsScreen(server: Server) -> Element {
-    let standings: Vec<Standing> = server.shared.hub().party.standings();
+    let (standings, heading): (Vec<Standing>, Option<String>) = {
+        let hub = server.shared.hub();
+        let party = &hub.party;
+        let heading = party
+            .progress()
+            .map(|progress| format!("{} · {}", progress.quiz_title, progress.words()));
+        (party.standings(), heading)
+    };
     rsx! {
         div { class: "standings-screen",
             h1 { "Standings" }
+            if let Some(heading) = heading {
+                p { class: "muted standings-progress", "{heading}" }
+            }
             table { class: "standings",
                 tbody {
                     for standing in standings {

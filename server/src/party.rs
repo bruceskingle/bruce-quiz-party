@@ -31,8 +31,11 @@ pub const MAX_NAME_CHARS: usize = 20;
 /// A party.
 #[derive(Debug)]
 pub struct Party {
-    /// The code players type, or which the join QR code holds, to join.
+    /// The code players type, or which the join QR code holds, to join. It is made as the controller starts and kept
+    /// from one party to the next, so that phones which remember it can rejoin, until the host asks for a new one.
     pub code: String,
+    /// Whether players need the code to join; without it, anyone who can reach the controller may join.
+    pub code_required: bool,
     /// Every quiz which could be read, to choose the party's from in setup.
     pub library: Vec<PartyQuiz>,
     /// The party's quizzes, chosen from the library in setup, which may be played.
@@ -134,6 +137,7 @@ impl Party {
     pub fn with_code(code: String, library: Vec<PartyQuiz>) -> Self {
         Self {
             code,
+            code_required: true,
             quizzes: library.clone(),
             library,
             players: Vec::new(),
@@ -174,17 +178,31 @@ impl Party {
         Ok(())
     }
 
-    /// Starts a new party after one has ended: a new game code, no players or scores, back in setup. The paired host
-    /// phones stay paired.
+    /// Starts a new party after one has ended: no players or scores, back in setup. The game code, and whether it is
+    /// needed, stay as they were, as do the paired host phones.
     pub fn new_party(&mut self) {
         let library = std::mem::take(&mut self.library);
         let hosts = std::mem::take(&mut self.hosts);
+        let code = std::mem::take(&mut self.code);
+        let code_required = self.code_required;
         let auto_advance = self.auto_advance;
         let rounds_asked = self.rounds_asked;
         *self = Self::new(library);
         self.hosts = hosts;
+        self.code = code;
+        self.code_required = code_required;
         self.auto_advance = auto_advance;
         self.rounds_asked = rounds_asked;
+    }
+
+    /// Changes the game code, when the host asks: players already in the party rejoin with their tokens, but new
+    /// ones need the new code.
+    pub fn new_code(&mut self) {
+        let old = std::mem::take(&mut self.code);
+        self.code = new_game_code();
+        while self.code == old {
+            self.code = new_game_code();
+        }
     }
 
     /// Pairs a phone as a host, in setup, with the pairing code from the QR code, returning the token it is to keep.
@@ -233,12 +251,20 @@ impl Party {
         true
     }
 
-    /// Joins a player, or rejoins one whose device gave the token it was given, who keeps their name and score.
+    /// Joins a player, or rejoins one whose device gave the token it was given, who keeps their name and score. A
+    /// player who rejoins needs only their token, so that a new game code does not shut them out; a new player needs
+    /// the game code, if the party needs one.
     pub fn join(&mut self, game_code: &str, name: &str, token: Option<&str>) -> Result<Joined, Refused> {
-        if !game_code.trim().eq_ignore_ascii_case(&self.code) {
+        let rejoining = token.is_some_and(|token| self.players.iter().any(|player| player.token == token));
+        let game_code = game_code.trim();
+        if self.code_required && !rejoining && !game_code.eq_ignore_ascii_case(&self.code) {
             return Err(Refused::new(
                 RejectReason::WrongGameCode,
-                format!("There is no party with the code {}.", game_code.trim()),
+                if game_code.is_empty() {
+                    "This party needs its game code: it's on the big screen.".to_string()
+                } else {
+                    format!("There is no party with the code {game_code}.")
+                },
             ));
         }
         match self.phase {
@@ -375,6 +401,37 @@ mod tests {
         assert_eq!(joined.token.len(), 32);
         let refused = party.join("ABCE", "Jo", None).unwrap_err();
         assert_eq!(refused.reason, RejectReason::WrongGameCode);
+    }
+
+    #[test]
+    fn joins_without_a_code_if_the_party_does_not_need_one() {
+        let mut party = party();
+        let refused = party.join("", "Sam", None).unwrap_err();
+        assert_eq!(refused.reason, RejectReason::WrongGameCode);
+        assert!(refused.message.contains("needs its game code"), "{}", refused.message);
+        party.code_required = false;
+        assert!(party.join("", "Sam", None).is_ok());
+        assert!(party.join("WXYZ", "Jo", None).is_ok(), "any code will do");
+    }
+
+    #[test]
+    fn keeps_the_code_until_asked_for_a_new_one() {
+        let mut party = party();
+        let sam = party.join("ABCD", "Sam", None).unwrap();
+        party.new_code();
+        assert_ne!(party.code, "ABCD");
+        assert_eq!(party.code.len(), CODE_LENGTH);
+        // Sam rejoins with the old code and the token; a new player needs the new code.
+        assert_eq!(party.join("ABCD", "", Some(&sam.token)).unwrap().player, sam.player);
+        let refused = party.join("ABCD", "Jo", None).unwrap_err();
+        assert_eq!(refused.reason, RejectReason::WrongGameCode);
+        let code = party.code.clone();
+        assert!(party.join(&code, "Jo", None).is_ok());
+
+        party.code_required = false;
+        party.new_party();
+        assert_eq!(party.code, code, "a new party keeps the code");
+        assert!(!party.code_required);
     }
 
     #[test]

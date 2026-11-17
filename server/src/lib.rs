@@ -4,6 +4,9 @@
 mod answer_shape;
 mod big_screen;
 mod bonjour;
+mod dock_icon;
+mod download;
+mod editor;
 pub mod game;
 mod library;
 pub mod net;
@@ -105,6 +108,8 @@ enum Page {
 #[component]
 fn App() -> Element {
     let mut page = use_signal(|| Page::Party);
+    // Once the app is running, so that the window library has made the application first.
+    use_hook(dock_icon::set);
     let tab = |this: Page| if page() == this { "nav-item active" } else { "nav-item" };
     rsx! {
         document::Stylesheet { href: MAIN_CSS }

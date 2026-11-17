@@ -18,11 +18,27 @@ questions on their phones, scoring more the faster they answer.
   the free Personal Team, so installs last a year rather than 7 days. The team is set only in the git-ignored
   `ios/Signing.xcconfig`; the iOS bundle ID is the Mac app's, `org.skingle.bruce-quiz-party`.
 - **Auto-advance** (17 Nov 2026): an option, off by default, for the party to move on by itself: the reveal for a few
-  seconds, then the standings for a time set by the host (30 seconds by default), then the next question. It stops at
+  seconds, then the standings for a time set by the host (5 seconds by default), then the next question. It stops at
   the party's leaderboard for the host to choose the next quiz. The big screen and the phones count down to moving on,
   and Next pressed on the reveal or the standings counts down too, 3 seconds by default, set in setup.
 - **Host tokens** (17 Nov 2026): the Mac keeps host phones' tokens in memory, for as long as it runs; a new party keeps
   the phones paired. The phone keeps its token in the Keychain.
+- **Game code** (17 Nov 2026): made once as the controller starts and kept from party to party, until the host presses
+  New Code, in setup or the lobby; setup has a checkbox for whether players need it at all. A player who rejoins with
+  their token needs no code, so a new code shuts out only newcomers. The browser client and the iOS app remember the
+  party last joined and its code, so a player can come back after leaving.
+- **Answer colours and shapes** (17 Nov 2026): kept as they are for now, though the pairing resembles other quiz
+  games'.
+- **The generator reads Wikipedia itself** (17 Nov 2026): it searches, reads the articles and checks the images'
+  licences, and gives Claude only their text, with no tools, asking for the questions as JSON; so the credits and
+  licences are exact and checked in code. Lists are read after other articles, and only the articles questions come
+  from are credited. It names itself to Wikimedia with the project's GitHub address (Bruce's choice, 17 Nov 2026). The
+  Anthropic API key option is left for later; it uses Claude Code on Bruce's subscription.
+- **Libraries** (17 Nov 2026): a library is a folder of quiz folders with an index, `library.json`, served from
+  anywhere, e.g. a GitHub repository's raw files; Bruce's is `bruceskingle/bruce-quiz-library`. The generator saves
+  into a quizzes folder or a library's local checkout, committing and pushing with the user's git if asked, so that
+  anyone can keep their own. The controller downloads from any library, Bruce's by default, trusting only safe paths
+  and quizzes which read.
 - **Names**: the app is "Bruce's Quiz Party", the crates `bruce-quiz-*`, the Bonjour service `_quizparty._tcp`.
 
 ## Projects
@@ -140,4 +156,4 @@ Each ends with a short summary for Bruce, its changes left for him to review.
 6. Setup mode, host pairing QR code and iOS host mode.
 7. Quiz editor on the Mac, with scoring curve preview.
 8. Separate quiz generator app (Claude Code and Wikipedia), then the online quiz library download in the controller.
-9. Polish, reconnection handling, README.
+9. Polish, reconnection handling, README. The icon is done for the iOS app and the controller, from `art/icon.png`.

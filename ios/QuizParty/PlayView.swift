@@ -9,6 +9,8 @@ struct PlayView: View {
     let session: PlayerSession
     /// Leaves the party, back to the join screen.
     let leave: () -> Void
+    /// Whether the player is being asked to confirm leaving.
+    @State private var confirmingLeave = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,8 +62,21 @@ struct PlayView: View {
                 .padding(.bottom, 8)
             }
             if showsLeave {
-                Button(isOver ? "Done" : "Leave the Party", role: isOver ? nil : .destructive, action: leave)
-                    .padding(.bottom, 8)
+                if isOver {
+                    Button("Done", action: leave).padding(.bottom, 8)
+                } else {
+                    // Asked first, as a stray tap would take the player out of the party.
+                    Button("Leave the Party", role: .destructive) { confirmingLeave = true }
+                        .padding(.bottom, 8)
+                        .confirmationDialog(
+                            "Leave the party?", isPresented: $confirmingLeave, titleVisibility: .visible
+                        ) {
+                            Button("Leave the Party", role: .destructive, action: leave)
+                            Button("Stay", role: .cancel) {}
+                        } message: {
+                            Text("You can join again with the same name and keep your score.")
+                        }
+                }
             }
         }
     }
@@ -262,6 +277,9 @@ private struct ResultScreen: View {
     var body: some View {
         let correctText = answers.indices.contains(Int(reveal.correct)) ? answers[Int(reveal.correct)] : ""
         VStack(spacing: 16) {
+            if let progress = reveal.progress {
+                Text(progress.words).font(.title3).foregroundStyle(Theme.muted)
+            }
             VStack(spacing: 8) {
                 if let result = reveal.result {
                     Text(result.correct ? "Correct!" : result.choice == nil ? "Too slow!" : "Wrong!")
@@ -300,6 +318,9 @@ private struct RankingScreen: View {
     var body: some View {
         VStack(spacing: 12) {
             Text(ranking.title).font(.largeTitle.bold()).multilineTextAlignment(.center)
+            if let progress = ranking.progress {
+                Text(progress).font(.title3).foregroundStyle(Theme.muted)
+            }
             if let me = ranking.row(of: player) {
                 Text("You're \(ordinal(me.rank)) with \(me.score) points").font(.title3).foregroundStyle(Theme.muted)
             }

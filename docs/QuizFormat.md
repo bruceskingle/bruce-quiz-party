@@ -108,3 +108,26 @@ trip, see [Protocol.md](Protocol.md). Points are rounded to the nearest whole po
 Quizzes drawn from Wikipedia are published under CC BY-SA 4.0, with `licence = "CC BY-SA 4.0"`, every article used in
 `[[sources]]`, and every image's author, licence and source in `[[images]]`; the controller shows these credits at the
 end of the quiz.
+
+## Libraries
+
+A library shares quizzes: a folder of quiz folders with an index, `library.json`, which lists each quiz and its
+files, so that it can be served from anywhere, e.g. a GitHub repository's raw files:
+
+```json
+{
+  "quizzes": [
+    {
+      "folder": "around-the-world",
+      "title": "Around the World",
+      "questions": 5,
+      "licence": "CC0 1.0",
+      "files": ["quiz.md", "images/flag.svg"]
+    }
+  ]
+}
+```
+
+The generator writes it when it saves a quiz into a library. The controller downloads only the files listed, `quiz.md`
+first, each a path inside the quiz's folder made of letters, digits, `-`, `_` and `.`, and a quiz file or an image;
+and keeps a quiz only if it reads.

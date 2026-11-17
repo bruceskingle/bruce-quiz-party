@@ -1,5 +1,5 @@
 //! The quiz library: the quizzes in the quizzes folder, listed in the sidebar, with the chosen one's questions
-//! previewed beside it.
+//! previewed beside it, to edit, or to start a new one.
 
 use std::path::{Path, PathBuf};
 
@@ -8,7 +8,7 @@ use dioxus::desktop::wry::http::{Request, Response, StatusCode};
 use dioxus::prelude::*;
 use quiz_format::{LoadError, Quiz};
 
-use crate::{Args, answer_shape::AnswerShape};
+use crate::{Args, PartyServer, answer_shape::AnswerShape, editor::QuizEditor, party::PartyQuiz};
 
 /// A quiz in the library, or why it could not be read.
 #[derive(Clone)]
@@ -40,13 +40,82 @@ fn read_library(folder: &Path) -> Result<Vec<Entry>, String> {
         .collect())
 }
 
-/// The library's sidebar and the chosen quiz.
+/// The library's sidebar and the chosen quiz, or the editor.
 #[component]
 pub fn Library() -> Element {
     let args = use_context::<Args>();
+    let PartyServer(server) = use_context::<PartyServer>();
     let folder = args.quizzes_folder();
-    let library = use_signal(|| read_library(&folder));
+    let mut library = use_signal({
+        let folder = folder.clone();
+        move || read_library(&folder)
+    });
     let mut chosen = use_signal(|| 0usize);
+    // The library is read each time the page is opened, so that it shows quizzes added since, e.g. by the generator;
+    // the next party can be set up with them too.
+    use_hook({
+        let server = server.clone();
+        move || {
+            if let (Ok(entries), Ok(server)) = (&*library.peek(), &server) {
+                server.shared.set_library(party_library(entries));
+            }
+        }
+    });
+    // The quiz being edited, in its folder, or a new one without; None when not editing.
+    let mut editing = use_signal(|| None::<(Option<PathBuf>, Quiz)>);
+    // Whether the host is looking at an online library to download quizzes from.
+    let mut browsing = use_signal(|| false);
+    // Reads the library again after a quiz was saved or downloaded, shows that quiz, and lets the next party choose it.
+    let reload = use_callback({
+        let folder = folder.clone();
+        let server = server.clone();
+        move |saved: PathBuf| {
+            let read = read_library(&folder);
+            if let Ok(entries) = &read {
+                if let Some(index) = entries.iter().position(|entry| entry.folder == saved) {
+                    chosen.set(index);
+                }
+                if let Ok(server) = &server {
+                    server.shared.set_library(party_library(entries));
+                }
+            }
+            library.set(read);
+        }
+    });
+
+    if let Some((quiz_folder, quiz)) = editing() {
+        return rsx! {
+            div { class: "container",
+                div { class: "content",
+                    QuizEditor {
+                        folder: quiz_folder,
+                        quiz,
+                        quizzes: folder.clone(),
+                        done: move |saved: Option<PathBuf>| {
+                            editing.set(None);
+                            if let Some(saved) = saved {
+                                reload(saved);
+                            }
+                        },
+                    }
+                }
+            }
+        };
+    }
+
+    if browsing() {
+        return rsx! {
+            div { class: "container",
+                div { class: "content",
+                    crate::download::LibraryBrowser {
+                        quizzes: folder.clone(),
+                        downloaded: move |saved: PathBuf| reload(saved),
+                        done: move |_| browsing.set(false),
+                    }
+                }
+            }
+        };
+    }
 
     let entries = match &*library.read() {
         Ok(entries) => entries.clone(),
@@ -85,14 +154,60 @@ pub fn Library() -> Element {
                 if entries.is_empty() {
                     p { class: "muted", "No quizzes in {folder.display()}" }
                 }
+                button {
+                    class: "new-quiz",
+                    onclick: move |_| editing.set(Some((None, crate::editor::new_quiz()))),
+                    "New Quiz"
+                }
+                button {
+                    class: "new-quiz",
+                    onclick: move |_| browsing.set(true),
+                    "Get Quizzes from a Library"
+                }
             }
             div { class: "content",
                 if let Some(entry) = entries.get(chosen()) {
+                    div { class: "preview-actions",
+                        if let Ok(quiz) = &entry.quiz {
+                            button {
+                                class: "primary",
+                                onclick: {
+                                    let entry = entry.clone();
+                                    let quiz = quiz.clone();
+                                    move |_| editing.set(Some((Some(entry.folder.clone()), quiz.clone())))
+                                },
+                                "Edit"
+                            }
+                        }
+                        button {
+                            title: "Open the quiz's folder in the Finder, e.g. to add its images",
+                            onclick: {
+                                let folder = entry.folder.clone();
+                                move |_| {
+                                    let _ = std::process::Command::new("open").arg(&folder).spawn();
+                                }
+                            },
+                            "Show in Finder"
+                        }
+                    }
                     QuizPreview { entry: entry.clone() }
                 }
             }
         }
     }
+}
+
+/// The quizzes of the library which could be read, for setting up a party.
+fn party_library(entries: &[Entry]) -> Vec<PartyQuiz> {
+    entries
+        .iter()
+        .filter_map(|entry| {
+            Some(PartyQuiz {
+                folder: entry.folder.clone(),
+                quiz: entry.quiz.clone().ok()?,
+            })
+        })
+        .collect()
 }
 
 /// The last part of a folder's path, to name a quiz which could not be read.

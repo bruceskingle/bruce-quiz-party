@@ -25,6 +25,14 @@ futures-util = "0.3"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 # Game codes and the players' rejoin tokens.
 rand = "0.9"
+# Downloading quizzes from an online library, over macOS's own TLS and certificates, see download.rs.
+ureq = { version = "3.5", default-features = false, features = ["native-tls-no-default", "gzip"] }
+
+# Setting the Dock's icon as the app starts, see dock_icon.rs; already used by Dioxus's windows, so nothing new.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSImage", "NSResponder"] }
+objc2-foundation = { version = "0.3", features = ["NSData"] }
 
 [dev-dependencies]
 # A WebSocket client, for the tests which join the party as a phone would.

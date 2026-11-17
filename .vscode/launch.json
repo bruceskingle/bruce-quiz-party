@@ -22,6 +22,39 @@
             }
         },
         {
+            // The quiz generator's window, writing into the sample quizzes, which the Controller above plays.
+            "type": "lldb",
+            "request": "launch",
+            "name": "Generator",
+            "presentation": { "group": "1 App", "order": 2 },
+            "cargo": {
+                "args": ["build", "--bin=bruce-quiz-generator", "--package=bruce-quiz-generator"],
+                "filter": { "name": "bruce-quiz-generator", "kind": "bin" }
+            },
+            "args": ["--quizzes", "${workspaceFolder}/quizzes"],
+            "cwd": "${workspaceFolder}/generator",
+            "env": {
+                "CARGO_MANIFEST_DIR": "${workspaceFolder}/generator",
+                "RUST_BACKTRACE": "1",
+                "OS_ACTIVITY_MODE": "disable"
+            }
+        },
+        {
+            // The quiz generator without its window, asking for the topic, e.g. to step through a generation; the
+            // steps are printed in the Debug Console.
+            "type": "lldb",
+            "request": "launch",
+            "name": "Generator, Without the Window",
+            "presentation": { "group": "1 App", "order": 3 },
+            "cargo": {
+                "args": ["build", "--bin=bruce-quiz-generator", "--package=bruce-quiz-generator"],
+                "filter": { "name": "bruce-quiz-generator", "kind": "bin" }
+            },
+            "args": ["--quizzes", "${workspaceFolder}/quizzes", "--topic", "${input:topic}", "--questions", "5"],
+            "cwd": "${workspaceFolder}/generator",
+            "env": { "RUST_BACKTRACE": "1" }
+        },
+        {
             // The quiz format's tests, e.g. to step through the parser.
             "type": "lldb",
             "request": "launch",
@@ -33,6 +66,15 @@
             },
             "args": [],
             "cwd": "${workspaceFolder}"
+        }
+    ],
+    "inputs": [
+        {
+            // The topic for the generator without its window.
+            "id": "topic",
+            "type": "promptString",
+            "description": "The quiz's topic",
+            "default": "The Moon"
         }
     ]
 }

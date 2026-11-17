@@ -4,6 +4,8 @@
 //! documented in `docs/QuizFormat.md`; [`Quiz::parse`] reads it and [`Quiz::to_markdown`] writes it back, so that the
 //! editor and the generator write files a person can still edit by hand.
 
+mod check;
+pub mod library;
 mod parse;
 mod scoring;
 mod write;
@@ -12,6 +14,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+pub use check::{folder_name, new_folder};
 pub use parse::ParseError;
 pub use scoring::{Curve, ScoringSettings};
 

@@ -13,11 +13,13 @@
     <header class="brand">Bruce's Quiz Party</header>
     <p id="paused" class="paused" hidden>Paused</p>
 
-    <!-- Choosing a name, and the game code if the link did not give it. -->
+    <!-- Choosing a name, and the game code if the link did not give it and the party needs one. -->
     <section id="join" class="screen" hidden>
       <form id="join-form" autocomplete="off">
-        <label for="code">Game code</label>
-        <input id="code" name="code" maxlength="8" autocapitalize="characters" spellcheck="false" required>
+        <div id="code-field" class="field">
+          <label for="code">Game code</label>
+          <input id="code" name="code" maxlength="8" autocapitalize="characters" spellcheck="false">
+        </div>
         <label for="name">Your name</label>
         <input id="name" name="name" maxlength="20" autocapitalize="words" spellcheck="false" required>
         <p id="join-error" class="error" hidden></p>
@@ -47,6 +49,7 @@
 
     <!-- How the player did on the question just asked. -->
     <section id="result" class="screen" hidden>
+      <p id="result-progress" class="muted"></p>
       <div id="result-panel" class="result-panel">
         <p id="result-title" class="result-title"></p>
         <p id="result-points" class="result-points"></p>
@@ -58,6 +61,7 @@
     <!-- The standings after a question. -->
     <section id="standings" class="screen" hidden>
       <p id="standings-title" class="hello"></p>
+      <p id="standings-progress" class="muted"></p>
       <p id="standings-me" class="muted"></p>
       <ol id="standings-list" class="standings"></ol>
     </section>

@@ -48,6 +48,34 @@ public struct PartyAddress: Hashable, Sendable, Codable {
     }
 }
 
+/// What a party says of itself before joining, the protocol's `PartyInfo`: whether to ask for the game code.
+public struct PartyInfo: Decodable, Equatable, Sendable {
+    /// Whether new players need the game code to join.
+    public var codeRequired: Bool
+
+    public init(codeRequired: Bool) {
+        self.codeRequired = codeRequired
+    }
+
+    /// Reads it from the controller's JSON.
+    public static func decode(_ data: Data) throws -> PartyInfo {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(PartyInfo.self, from: data)
+    }
+}
+
+extension PartyAddress {
+    /// Asks the party whether it needs the game code, from `/party.json` on its web server.
+    public func info() async throws -> PartyInfo {
+        guard let url = fileURL("/party.json") else { throw URLError(.badURL) }
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 5)
+        request.httpMethod = "GET"
+        let (data, _) = try await URLSession.shared.data(for: request)
+        return try PartyInfo.decode(data)
+    }
+}
+
 /// The port the controller uses when it is free.
 public let defaultPort: UInt16 = 8765
 
@@ -61,8 +89,10 @@ public struct JoinLink: Equatable, Sendable {
         self.code = code
     }
 
-    /// Reads the join QR code, the browser client's URL `http://<mac>:<port>/?code=ABCD`, or the app's own link,
-    /// `quizparty://join?host=<mac>&port=<port>&code=ABCD`. Anything else is not a party's.
+    /// Reads the join QR code, the browser client's URL `http://<mac>:<port>/?code=ABCD`, or `http://<mac>:<port>/`
+    /// for a party which needs no code, or the app's own link, `quizparty://join?host=<mac>&port=<port>&code=ABCD`.
+    /// Anything else is not a party's: a web page without a code is one only if it names a port, as the controller's
+    /// address always does, and is the site's front page.
     public init?(url: URL) {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return nil }
         let query = Dictionary(
@@ -72,7 +102,9 @@ public struct JoinLink: Equatable, Sendable {
         }
         switch components.scheme?.lowercased() {
         case "http":
-            guard let host = components.host, !host.isEmpty, code != nil else { return nil }
+            guard let host = components.host, !host.isEmpty,
+                code != nil || (components.port != nil && ["", "/"].contains(components.path))
+            else { return nil }
             address = PartyAddress(host: host, port: UInt16(components.port ?? 80))
         case urlScheme:
             guard components.host == "join", let host = query["host"], !host.isEmpty,

@@ -40,6 +40,29 @@ public struct JoinMemory: Sendable {
         defaults.removeObject(forKey: key(code))
     }
 
+    /// The party last joined, and its code, empty if it needed none, for rejoining it after leaving.
+    public struct LastParty: Codable, Equatable, Sendable {
+        public var address: PartyAddress
+        public var code: String
+
+        public init(address: PartyAddress, code: String) {
+            self.address = address
+            self.code = code
+        }
+    }
+
+    /// The party last joined, while the phone still has its token to rejoin as the same player.
+    public var lastParty: LastParty? {
+        get {
+            defaults.data(forKey: "quizparty:last-party")
+                .flatMap { try? JSONDecoder().decode(LastParty.self, from: $0) }
+                .flatMap { entry(code: $0.code) != nil ? $0 : nil }
+        }
+        nonmutating set {
+            defaults.set(newValue.flatMap { try? JSONEncoder().encode($0) }, forKey: "quizparty:last-party")
+        }
+    }
+
     /// The name last used for any party, to suggest it.
     public var lastName: String {
         get { defaults.string(forKey: "quizparty:name") ?? "" }
@@ -58,6 +81,8 @@ public struct Ranking: Equatable, Sendable {
     }
 
     public var title: String
+    /// How far through the quiz, e.g. "After 6 of 20 Questions", for the standings after a question.
+    public var progress: String?
     /// Every row, in order of place.
     public var rows: [Row]
 
@@ -85,9 +110,10 @@ public struct Ranking: Equatable, Sendable {
         }
     }
 
-    /// The standings after a question.
-    public init(_ standings: [Standing]) {
+    /// The standings after a question, and how far through the quiz.
+    public init(_ standings: [Standing], progress: Progress? = nil) {
         title = "Standings"
+        self.progress = progress?.words
         rows = standings.map { Row(player: $0.player, name: $0.name, score: $0.score, rank: $0.rank) }
     }
 }
@@ -214,6 +240,7 @@ public final class PlayerSession {
             self.name = name
             connection?.succeeded()
             memory.remember(code: code, .init(token: token, name: name))
+            memory.lastParty = .init(address: address, code: code)
             screen = .lobby
         case .rejected(let reason, let message):
             connection?.stop()
@@ -243,8 +270,8 @@ public final class PlayerSession {
             }
         case .reveal(let reveal):
             screen = .result(reveal)
-        case .standings(let standings):
-            screen = .ranking(Ranking(standings))
+        case .standings(let standings, let progress):
+            screen = .ranking(Ranking(standings, progress: progress))
         case .leaderboard(let board):
             screen = .ranking(Ranking(board))
         case .paused:
