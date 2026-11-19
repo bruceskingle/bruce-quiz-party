@@ -270,6 +270,9 @@ public final class PlayerSession {
             }
         case .reveal(let reveal):
             screen = .result(reveal)
+            if let path = reveal.nextImage, let url = address.fileURL(path) {
+                ImageCache.shared.prefetch(url)
+            }
         case .standings(let standings, let progress):
             screen = .ranking(Ranking(standings, progress: progress))
         case .leaderboard(let board):

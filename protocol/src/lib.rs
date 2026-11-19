@@ -272,7 +272,8 @@ pub struct QuestionView {
     pub total: u32,
     /// The question's text, or the prompt of an image question.
     pub text: String,
-    /// The image's URL path on the controller's web server, if it is an image question.
+    /// The image's URL path on the controller's web server, if it is an image question, e.g. `/image/1/3?p=12345`:
+    /// by the quiz and question, never the file's name, which might give the answer away.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<String>,
     /// A description of the image, for those who cannot see it.
@@ -302,6 +303,10 @@ pub struct Reveal {
     /// A link to read more, e.g. the Wikipedia section the answer comes from, shown as a QR code.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
+    /// The next question's image, if it has one, for the phones to fetch now, so that it is there as the question is
+    /// asked, rather than all of them fetching it then, with the clock running.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_image: Option<String>,
     /// How this player did, sent only to players.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result: Option<PlayerResult>,

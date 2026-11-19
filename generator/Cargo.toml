@@ -1,6 +1,6 @@
 [package]
 name = "bruce-quiz-generator"
-description = "Bruce's Quiz Generator: writes quiz drafts from Wikipedia with Claude, for Bruce's Quiz Party."
+description = "Writes quiz drafts from Wikipedia with Claude, for Bruce's Quiz Party: used by the controller's Quizzes page, and from the command line."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,12 +15,6 @@ serde.workspace = true
 serde_json.workspace = true
 clap = { version = "4.6", features = ["derive"] }
 dirs = "7"
-dioxus = { version = "0.7.10", features = ["desktop"] }
-tokio = { version = "1", features = ["full"] }
 rand = "0.9"
 # Wikipedia's and Wikimedia Commons' APIs, over macOS's own TLS and certificates, see wikipedia.rs.
 ureq = { version = "3.5", default-features = false, features = ["native-tls-no-default", "json", "gzip"] }
-
-[features]
-default = ["desktop"]
-desktop = ["dioxus/desktop"]

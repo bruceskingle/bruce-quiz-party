@@ -18,18 +18,21 @@ public struct PartyAddress: Hashable, Sendable, Codable {
         url(scheme: "ws", path: webSocketPath)
     }
 
-    /// The URL of a file on its web server, e.g. a question's image.
+    /// The URL of a file on its web server, e.g. a question's image, from its path and any query, e.g.
+    /// `/image/1/3?p=12345`.
     public func fileURL(_ path: String) -> URL? {
-        url(scheme: "http", path: path)
+        let parts = path.split(separator: "?", maxSplits: 1).map(String.init)
+        return url(scheme: "http", path: parts.first ?? "", query: parts.count > 1 ? parts[1] : nil)
     }
 
-    private func url(scheme: String, path: String) -> URL? {
+    private func url(scheme: String, path: String, query: String? = nil) -> URL? {
         var components = URLComponents()
         components.scheme = scheme
         // An IPv6 address goes in brackets.
         components.host = host.contains(":") ? "[\(host)]" : host
         components.port = Int(port)
         components.path = path
+        components.percentEncodedQuery = query
         return components.url
     }
 

@@ -16,24 +16,63 @@ use crate::wikipedia::{Article, Picture};
 pub const LICENCE: &str = "CC BY-SA 4.0";
 
 /// What the quiz is to be.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Request {
+    /// The subject, short, e.g. "Flags of Europe": searched for on Wikipedia if no articles are given, and the quiz is
+    /// about it. It may be empty if articles are given.
     pub topic: String,
+    /// The Wikipedia articles to write from, by title, chosen by the user; if none, those found for the topic.
+    pub articles: Vec<String>,
+    /// Anything else for Claude, in the user's own words, e.g. "Every question is a picture question".
+    pub instructions: String,
     pub questions: usize,
     pub difficulty: Difficulty,
 }
 
+impl Request {
+    /// The subject, as it is to be written about: a category's name without `Category:`.
+    pub fn topic_name(&self) -> &str {
+        let topic = self.topic.trim();
+        match topic.split_once(':') {
+            Some((prefix, name)) if prefix.trim().eq_ignore_ascii_case("category") => name.trim(),
+            _ => topic,
+        }
+    }
+}
+
 /// How hard the questions are to be.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Difficulty {
     Easy,
+    #[default]
     Medium,
     Hard,
 }
 
 impl Difficulty {
-    /// What it means, for the prompt.
-    fn describe(self) -> &'static str {
+    /// Every difficulty, easiest first, for choosing one.
+    pub const ALL: [Difficulty; 3] = [Difficulty::Easy, Difficulty::Medium, Difficulty::Hard];
+
+    /// Reads a difficulty's name, e.g. from the command line, medium if it is none of them.
+    pub fn parse(text: &str) -> Difficulty {
+        match text.trim().to_ascii_lowercase().as_str() {
+            "easy" => Difficulty::Easy,
+            "hard" => Difficulty::Hard,
+            _ => Difficulty::Medium,
+        }
+    }
+
+    /// Its name, as [`Difficulty::parse`] reads it.
+    pub fn name(self) -> &'static str {
+        match self {
+            Difficulty::Easy => "easy",
+            Difficulty::Medium => "medium",
+            Difficulty::Hard => "hard",
+        }
+    }
+
+    /// What it means, for the prompts.
+    pub(crate) fn describe(self) -> &'static str {
         match self {
             Difficulty::Easy => "easy: questions most people at a party would know or could guess",
             Difficulty::Medium => "medium: a mix, some which most would know and some which only a keen few would",
@@ -44,8 +83,12 @@ impl Difficulty {
 
 /// The prompt: the articles and images to write from, and how to write the questions.
 pub fn prompt(request: &Request, articles: &[Article], pictures: &[Picture]) -> String {
+    let about = match request.topic_name() {
+        "" => "Write a multiple-choice quiz for a party game, from the articles below.".to_string(),
+        topic => format!("Write a multiple-choice quiz for a party game, about: {topic}"),
+    };
     let mut prompt = format!(
-        "Write a multiple-choice quiz for a party game, about: {topic}\n\n\
+        "{about}\n\n\
          Write {count} questions, {difficulty}.\n\n\
          Rules:\n\
          - Use only facts stated in the articles below, and give for each question the number of the article it comes \
@@ -56,14 +99,25 @@ pub fn prompt(request: &Request, articles: &[Article], pictures: &[Picture]) -> 
            answered against the clock.\n\
          - Put the correct answer first; the game shuffles them.\n\
          - Do not ask two questions with the same answer, or whose wording gives away another's answer.\n\
+         - Spread the questions across the articles, so that the quiz covers the subject broadly: ask more than two \
+           from one article only if there are few articles.\n\
          - A question may show one of the images below, if it makes a good question, e.g. \"Which country's flag is \
            this?\". Then give its number and a short description of what it shows for those who cannot see it, which \
-           does not give away the answer. Most questions have no image.\n\
+           does not give away the answer. Choose only an image whose name or description makes clear what it shows. \
+           Unless the instructions below say otherwise, most questions have no image.\n\
          - The title is short and inviting; the description is one sentence.\n\n",
-        topic = request.topic,
         count = request.questions,
         difficulty = request.difficulty.describe(),
     );
+    if !request.instructions.trim().is_empty() {
+        prompt.push_str(&format!(
+            "The quiz maker's own instructions. Follow them where they differ from the rules above, except that every \
+             fact must still come from the articles, and only the images listed may be shown. If they cannot all be \
+             followed, e.g. there are too few images, follow them as far as the articles and images allow:\n\
+             <instructions>\n{}\n</instructions>\n\n",
+            request.instructions.trim()
+        ));
+    }
     for (index, article) in articles.iter().enumerate() {
         prompt.push_str(&format!(
             "<article number=\"{}\" title=\"{}\">\n{}\n</article>\n\n",
@@ -79,15 +133,25 @@ pub fn prompt(request: &Request, articles: &[Article], pictures: &[Picture]) -> 
                 "{}. {}: {}\n",
                 index + 1,
                 picture.name,
-                if picture.description.is_empty() {
-                    "no description"
-                } else {
-                    &picture.description
+                match shortened(&picture.description, MAX_DESCRIPTION_CHARS) {
+                    "" => "no description",
+                    description => description,
                 }
             ));
         }
     }
     prompt
+}
+
+/// The most of an image's description given to Claude, in characters, as some are long, and a quiz may have many.
+const MAX_DESCRIPTION_CHARS: usize = 300;
+
+/// Text cut to at most `count` characters.
+fn shortened(text: &str, count: usize) -> &str {
+    match text.char_indices().nth(count) {
+        Some((cut, _)) => &text[..cut],
+        None => text,
+    }
 }
 
 /// The JSON Schema of Claude's answer.
@@ -280,7 +344,8 @@ mod tests {
             url: "https://en.wikipedia.org/wiki/Flag_of_Japan".into(),
             revision: "2026-11-02".into(),
             text: "The flag of Japan is white with a red disc.".into(),
-            image: Some("Flag_of_Japan.svg".into()),
+            image: Some("Flag of Japan.svg".into()),
+            images: Vec::new(),
         }]
     }
 
@@ -301,12 +366,27 @@ mod tests {
             topic: "Flags".into(),
             questions: 5,
             difficulty: Difficulty::Easy,
+            ..Request::default()
         };
         let prompt = prompt(&request, &articles(), &pictures());
         assert!(prompt.contains("about: Flags"));
+        assert!(!prompt.contains("<instructions>"));
         assert!(prompt.contains("Write 5 questions, easy"));
         assert!(prompt.contains("<article number=\"1\" title=\"Flag of Japan\">"));
         assert!(prompt.contains("1. Flag of Japan.svg: The flag of Japan"));
+    }
+
+    #[test]
+    fn the_prompt_has_the_quiz_makers_instructions() {
+        let request = Request {
+            articles: vec!["Flag of Japan".into()],
+            instructions: " Every question is a picture question.\n".into(),
+            questions: 5,
+            ..Request::default()
+        };
+        let prompt = prompt(&request, &articles(), &pictures());
+        assert!(prompt.starts_with("Write a multiple-choice quiz for a party game, from the articles below."));
+        assert!(prompt.contains("<instructions>\nEvery question is a picture question.\n</instructions>"));
     }
 
     #[test]

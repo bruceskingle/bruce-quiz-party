@@ -47,18 +47,13 @@ The Quizzes page lists the quizzes, with Edit and New Quiz: the editor has a gra
 scores as time passes, for choosing the scoring, and saves the quiz as a person would write it. A question's image is
 chosen from the images in the quiz's folder; Show in Finder opens it to add them.
 
-The quiz generator, a separate app for drafting quizzes, reads Wikipedia's articles on a topic and has Claude write
-the questions, using Claude Code on your own subscription (`claude` on the PATH, or the copy that comes with its VS
-Code extension). It credits the articles and images under CC BY-SA, using only freely licensed images, and saves the
-draft in the quizzes folder, to review in the controller's editor:
-
-```sh
-cd generator
-dx serve
-```
-
-The generator saves either into a quizzes folder, to play the quiz there, or into a local checkout of a library's git
-repository, committing and pushing it if you ask, to share it. A library is a folder of quizzes with an index,
+If Claude Code is installed (`claude` on the PATH, or the copy that comes with its VS Code extension, or given with
+`--claude <path>`), the Quizzes page also offers Write a Quiz with Claude: it reads Wikipedia's articles on a topic
+and has Claude write the questions, on your own Claude subscription. It credits the articles and images under CC
+BY-SA, using only freely licensed images, and opens the draft in the editor to review. It saves either into the app's
+quizzes, to play it here, or into a local checkout of a library's git repository, committing and pushing it if you
+ask, to share it. The same is done from the command line with
+`cargo run -p bruce-quiz-generator -- --topic "The Moon" --quizzes <folder>`. A library is a folder of quizzes with an index,
 `library.json`, on the web or on disk: the controller's Quizzes page lists Bruce's,
 [bruce-quiz-library](https://github.com/bruceskingle/bruce-quiz-library), or any other you give it, and downloads
 quizzes from it.

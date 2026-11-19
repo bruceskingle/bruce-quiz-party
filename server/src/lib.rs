@@ -8,9 +8,11 @@ mod dock_icon;
 mod download;
 mod editor;
 pub mod game;
+mod generator;
 mod library;
 pub mod net;
 pub mod party;
+mod phone_image;
 mod qr;
 
 use std::path::PathBuf;
@@ -25,6 +27,10 @@ pub struct Args {
     /// The folder of quizzes, each a folder with a quiz.md. By default, the quizzes folder in the app's data folder.
     #[arg(long)]
     pub quizzes: Option<PathBuf>,
+    /// The Claude Code command, for writing quizzes with Claude. By default, `claude` on the PATH, or the copy that
+    /// comes with the VS Code extension; without it, the Quizzes page does not offer to write one.
+    #[arg(long)]
+    pub claude: Option<PathBuf>,
 }
 
 impl Args {

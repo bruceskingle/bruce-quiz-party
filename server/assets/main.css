@@ -953,3 +953,85 @@ table.standings td.quiz-column {
 .library-quiz-text {
     flex: 1 1 auto;
 }
+
+/* Writing a quiz with Claude, on the Quizzes page: the subject, the articles and the instructions, the options in a row, the steps, and the draft's answers
+   with the correct one marked. */
+.generator {
+    max-width: 900px;
+}
+
+.generator-form {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin: 1rem 0;
+}
+
+.generator-form .topic {
+    flex: 1 1 auto;
+}
+
+.generator-label {
+    display: block;
+    margin-top: 1rem;
+    font-weight: 600;
+}
+
+.generator-label + .generator-form {
+    margin-top: 0.4rem;
+}
+
+.generator textarea {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 0.4rem;
+    resize: vertical;
+}
+
+.generator input, .generator select, .generator textarea {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid #404045;
+    border-radius: 4px;
+    padding: 8px 10px;
+    font: inherit;
+}
+
+.steps {
+    color: var(--muted);
+}
+
+.draft-answers li.correct {
+    color: var(--ok);
+    font-weight: 700;
+}
+
+.draft-answers li.correct::after {
+    content: " ✓";
+}
+
+.destination {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 1rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.destination label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* Each choice's folder, under it, indented to line up with its words. */
+.destination-path {
+    width: calc(100% - 1.6rem);
+    margin-left: 1.6rem;
+}
+
+.destination-path:disabled {
+    opacity: 0.6;
+}

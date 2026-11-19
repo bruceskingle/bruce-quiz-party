@@ -13,16 +13,6 @@
 			"presentation": { "reveal": "always", "panel": "dedicated" }
 		},
 		{
-			// Runs the quiz generator, rebuilding it as files change.
-			"label": "Generator: dx serve",
-			"type": "shell",
-			"command": "dx serve",
-			"options": { "cwd": "${workspaceFolder}/generator" },
-			"problemMatcher": [],
-			"isBackground": true,
-			"presentation": { "reveal": "always", "panel": "dedicated" }
-		},
-		{
 			// Every test, then the dependencies' licences, advisories and sources.
 			"label": "Test and Check",
 			"type": "shell",

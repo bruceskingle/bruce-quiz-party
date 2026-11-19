@@ -45,7 +45,7 @@ fn example_files_are_up_to_date() {
         number: 3,
         total: 5,
         text: "Which flag is this?".into(),
-        image: Some("/quiz/around-the-world/images/flag.svg".into()),
+        image: Some("/image/1/3?p=12345".into()),
         image_alt: Some("A red disc on white".into()),
         answers: vec!["Japan".into(), "Bangladesh".into(), "Palau".into()],
         time_limit_ms: 20_000,
@@ -63,6 +63,7 @@ fn example_files_are_up_to_date() {
         correct: 0,
         counts: vec![3, 1, 0],
         source: Some("https://en.wikipedia.org/wiki/Flag_of_Japan".into()),
+        next_image: Some("/image/1/4?p=12345".into()),
         result: Some(PlayerResult {
             choice: Some(0),
             correct: true,
@@ -184,6 +185,7 @@ fn example_files_are_up_to_date() {
         ServerMessage::Reveal(reveal.clone()),
         ServerMessage::Reveal(Reveal {
             source: None,
+            next_image: None,
             result: Some(PlayerResult {
                 choice: None,
                 correct: false,

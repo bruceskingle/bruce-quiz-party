@@ -9,6 +9,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+generator.workspace = true
 quiz-format.workspace = true
 protocol.workspace = true
 anyhow.workspace = true
@@ -38,6 +39,8 @@ objc2-foundation = { version = "0.3", features = ["NSData"] }
 # A WebSocket client, for the tests which join the party as a phone would.
 tokio-tungstenite = "0.30"
 serde_json.workspace = true
+# Raising the open files limit for the load test's hundred phones, as macOS's default is 256; already in the tree.
+libc = "0.2"
 
 [lib]
 name = "bruce_quiz_party"

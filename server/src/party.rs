@@ -36,6 +36,9 @@ pub struct Party {
     pub code: String,
     /// Whether players need the code to join; without it, anyone who can reach the controller may join.
     pub code_required: bool,
+    /// Tells this party's image addresses from another's, as they are by the quiz's place in the party, which a new
+    /// party may change, and phones keep the images they fetch.
+    pub images_key: u32,
     /// Every quiz which could be read, to choose the party's from in setup.
     pub library: Vec<PartyQuiz>,
     /// The party's quizzes, chosen from the library in setup, which may be played.
@@ -138,6 +141,7 @@ impl Party {
         Self {
             code,
             code_required: true,
+            images_key: rand::rng().random(),
             quizzes: library.clone(),
             library,
             players: Vec::new(),
@@ -174,6 +178,7 @@ impl Party {
             return Err(format!("Choose at most {MAX_QUIZZES} quizzes."));
         }
         self.quizzes = quizzes;
+        self.images_key = rand::rng().random();
         self.phase = Phase::Lobby;
         Ok(())
     }

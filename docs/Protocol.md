@@ -28,6 +28,10 @@ Change `PROTOCOL_VERSION` whenever a change means an old client would misread th
   big screen, so that only those in the room can join, unless the host has chosen a party which needs no code.
 - **Party info**: `GET /party.json` gives `{"code_required": true}`, for the join screens to ask for the game code
   only if the party needs it. It never gives the code itself.
+- **Question images**: `GET /image/<quiz>/<question>?p=<party>`, by the quiz's and question's places, never the
+  file's name, which might give the answer away; only the question being asked and the next are served, a big photo
+  as a smaller copy, at most 1280 pixels on its longest side. The `p` names the party, so that a phone's cached image
+  is never another party's.
 - **Join QR code**: the browser client's URL with the game code, `http://<mac>:<port>/?code=ABCD`, or without it,
   `http://<mac>:<port>/`, for a party which needs no code.
 - **Host pairing QR code**: `quizparty://host?host=<mac>&port=<port>&pair=<code>`, shown on the Mac only while the
@@ -58,11 +62,11 @@ From the controller:
 | `welcome` | The player has joined: their `player` number, `name`, and the `token` to keep for rejoining. |
 | `rejected` | A join or pairing was refused: `reason` and `message`. The connection is closed. |
 | `ping` | Asks for a `pong`, to measure the round trip. |
-| `lobby` | The players who have joined. |
+| `lobby` | The players who have joined, sent at most every half second, to the phones whose list is out of date. |
 | `question` | A question, without its answer, sent to every player at the same moment. |
 | `answer_locked` | The player's answer was taken. |
-| `answer_count` | How many players have answered so far. |
-| `reveal` | The correct answer, how many chose each, the source link, and how this player did. |
+| `answer_count` | How many players have answered so far, sent at most every quarter of a second. |
+| `reveal` | The correct answer, how many chose each, the source link, how this player did, and the next question's image, for the phone to fetch now. |
 | `standings` | The places after a question, other than a quiz's last. |
 | `leaderboard` | After a quiz's last question, its leaderboard, sorted by its places, then the party's, sorted by the totals. |
 | `countdown` | The party moves on soon, by itself or as the host pressed Next: what comes `next`, e.g. "Next question", and `in_ms`, for a countdown under the reveal or the standings. Whatever the party shows next ends it. |

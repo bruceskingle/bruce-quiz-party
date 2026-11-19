@@ -42,7 +42,7 @@ private func object(_ data: Data) throws -> NSObject {
         return
     }
     #expect(view.quizTitle == "Around the World")
-    #expect(view.image == "/quiz/around-the-world/images/flag.svg")
+    #expect(view.image == "/image/1/3?p=12345")
     #expect(view.imageAlt == "A red disc on white")
     #expect(view.answers == ["Japan", "Bangladesh", "Palau"])
     #expect((view.timeLimitMs, view.remainingMs, view.maxPoints) == (20_000, 12_345, 1000))
@@ -50,6 +50,7 @@ private func object(_ data: Data) throws -> NSObject {
     #expect(plain.image == nil && plain.imageAlt == nil)
     guard case .reveal(let reveal) = messages[12] else { return }
     #expect(reveal.result?.quizRank == 2)
+    #expect(reveal.nextImage == "/image/1/4?p=12345")
     #expect(reveal.progress?.words == "After 6 of 20 Questions")
     guard case .reveal(let tooSlow) = messages[13] else { return }
     #expect(tooSlow.result?.choice == nil && tooSlow.source == nil)
@@ -124,6 +125,11 @@ private func object(_ data: Data) throws -> NSObject {
 
 @Test func readsWhetherThePartyNeedsItsCode() throws {
     #expect(try PartyInfo.decode(Data(#"{"code_required":false}"#.utf8)) == PartyInfo(codeRequired: false))
+}
+
+@Test func makesImageAddressesWithTheirQuery() throws {
+    let url = try #require(PartyAddress(host: "192.168.1.20", port: 8765).fileURL("/image/1/3?p=12345"))
+    #expect(url.absoluteString == "http://192.168.1.20:8765/image/1/3?p=12345")
 }
 
 @Test func readsTypedAddresses() {

@@ -229,6 +229,7 @@ function receive(message) {
       break;
     case "reveal":
       showResult(message);
+      prefetch(message.next_image);
       break;
     case "standings":
       showStandings(message.standings, message.progress);
@@ -351,6 +352,18 @@ function ordinal(rank) {
   const tens = rank % 100;
   const suffix = tens >= 11 && tens <= 13 ? "th" : { 1: "st", 2: "nd", 3: "rd" }[rank % 10] || "th";
   return rank + suffix;
+}
+
+/** The images fetched ahead, kept until they are shown, so that the browser does not drop them. */
+const prefetched = new Map();
+
+/** Fetches the next question's image now, so that it is there as the question is asked. */
+function prefetch(url) {
+  if (!url || prefetched.has(url)) return;
+  if (prefetched.size > 4) prefetched.clear();
+  const image = new Image();
+  image.src = url;
+  prefetched.set(url, image);
 }
 
 /** Shows how the player did, e.g. "Correct! +850 points, you're 3rd". */

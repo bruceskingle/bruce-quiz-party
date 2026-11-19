@@ -824,7 +824,7 @@
           }
         },
         "image": {
-          "description": "The image's URL path on the controller's web server, if it is an image question.",
+          "description": "The image's URL path on the controller's web server, if it is an image question, e.g. `/image/1/3?p=12345`:\nby the quiz and question, never the file's name, which might give the answer away.",
           "type": [
             "string",
             "null"
@@ -988,6 +988,13 @@
             "format": "uint32",
             "minimum": 0
           }
+        },
+        "next_image": {
+          "description": "The next question's image, if it has one, for the phones to fetch now, so that it is there as the question is\nasked, rather than all of them fetching it then, with the clock running.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "progress": {
           "description": "How far through its quiz the party is, for \"After 6 of 20 Questions\".",

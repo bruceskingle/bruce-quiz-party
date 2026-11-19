@@ -5,7 +5,6 @@
 use std::{
     collections::HashMap,
     net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
-    path::PathBuf,
     sync::{Arc, Mutex, MutexGuard},
     time::{Duration, Instant},
 };
@@ -36,8 +35,15 @@ use crate::{
 /// is taken, any free port.
 pub const DEFAULT_PORT: u16 = 8765;
 
-/// How often each phone is pinged, to keep its round trip up to date.
-const PING_INTERVAL: Duration = Duration::from_secs(2);
+/// How often each phone is pinged, to keep its round trip up to date: often, so that it follows the network as it gets
+/// busier, e.g. as everyone answers, as answers are timed less their phone's round trip.
+const PING_INTERVAL: Duration = Duration::from_secs(1);
+
+/// The least time between sending the count of answers, see [`Hub::answer_count_sent`].
+const ANSWER_COUNT_GAP: Duration = Duration::from_millis(250);
+
+/// The least time between sending the lobby's list of players, see [`Hub::lobby_sent`].
+const LOBBY_GAP: Duration = Duration::from_millis(500);
 
 /// How often the party's clock is checked, for closing questions at their deadline and moving on by itself.
 const TICK_INTERVAL: Duration = Duration::from_millis(100);
@@ -64,6 +70,8 @@ struct Conn {
     host: bool,
     /// The ping sent and not yet answered, and when it was sent.
     ping: Option<(u64, Instant)>,
+    /// Whether the lobby's list of players has changed since this player was last sent it, see [`Hub::lobby_sent`].
+    lobby_stale: bool,
 }
 
 /// The party and its connections, behind one lock, held only briefly and never across an await.
@@ -73,6 +81,14 @@ pub struct Hub {
     conns: HashMap<ConnId, Conn>,
     next_conn: ConnId,
     next_nonce: u64,
+    /// When the count of answers was last sent, and whether a newer one is waiting to be: it is sent at most every
+    /// [`ANSWER_COUNT_GAP`], so that a hundred players answering do not send each phone a hundred updates.
+    answer_count_sent: Option<Instant>,
+    answer_count_due: bool,
+    /// When the lobby's list of players was last sent, to those whose list was out of date: at most every
+    /// [`LOBBY_GAP`], as when a hundred phones scan the QR code at once, each would otherwise be sent the list a
+    /// hundred times, each time longer.
+    lobby_sent: Option<Instant>,
 }
 
 impl Hub {
@@ -91,14 +107,53 @@ impl Hub {
     }
 
     /// Sends the lobby to every player.
-    fn broadcast_lobby(&self) {
-        self.broadcast(&ServerMessage::Lobby {
+    fn broadcast_lobby(&mut self) {
+        self.lobby_changed(None);
+    }
+
+    /// Notes that the lobby's list of players has changed for every player but one, e.g. one just sent it, and sends
+    /// it now, or once [`LOBBY_GAP`] has passed since it was last sent.
+    fn lobby_changed(&mut self, except: Option<ConnId>) {
+        for (id, conn) in &mut self.conns {
+            if conn.player.is_some() && Some(*id) != except {
+                conn.lobby_stale = true;
+            }
+        }
+        self.send_lobby_if_due();
+    }
+
+    /// Sends the lobby's list of players to those whose list is out of date, unless it was sent too lately.
+    fn send_lobby_if_due(&mut self) {
+        let now = Instant::now();
+        let stale = self.conns.values().any(|conn| conn.lobby_stale);
+        let lately = self
+            .lobby_sent
+            .is_some_and(|sent| now.saturating_duration_since(sent) < LOBBY_GAP);
+        if !stale || lately || self.party.phase != Phase::Lobby {
+            return;
+        }
+        self.lobby_sent = Some(now);
+        let message = ServerMessage::Lobby {
             players: self.party.lobby(),
-        });
+        };
+        for conn in self.conns.values_mut().filter(|conn| conn.lobby_stale) {
+            conn.lobby_stale = false;
+            let _ = conn.sender.send(message.clone());
+        }
     }
 
     /// Sends how many have answered to every player.
-    fn broadcast_answer_count(&self) {
+    fn broadcast_answer_count(&mut self) {
+        let now = Instant::now();
+        if self
+            .answer_count_sent
+            .is_some_and(|sent| now.saturating_duration_since(sent) < ANSWER_COUNT_GAP)
+        {
+            self.answer_count_due = true;
+            return;
+        }
+        self.answer_count_sent = Some(now);
+        self.answer_count_due = false;
         if let Some(message) = self.answer_count() {
             self.broadcast(&message);
         }
@@ -204,6 +259,11 @@ impl Hub {
     /// Sends every player what their phone shows of the party's phase, when it changes.
     fn broadcast_phase(&mut self, now: Instant) {
         self.party.note_shown(now);
+        // A question's own messages carry its count, and the lobby's its players.
+        self.answer_count_due = false;
+        for conn in self.conns.values_mut() {
+            conn.lobby_stale = false;
+        }
         for conn in self.conns.values() {
             if let Some(player) = conn.player {
                 for message in self.phase_messages(player, now) {
@@ -259,13 +319,24 @@ impl Shared {
 
     /// Ends setup with the quizzes chosen from the library, so that players can join.
     pub fn start_party(&self, chosen: &[usize]) -> Result<(), String> {
-        self.hub().party.start_party(chosen)?;
+        let images = {
+            let mut hub = self.hub();
+            hub.party.start_party(chosen)?;
+            (0..hub.party.quizzes.len())
+                .flat_map(|quiz| hub.party.image_files(quiz))
+                .collect()
+        };
+        // The phones' copies of big photos are made now, so that they are ready before the questions are asked.
+        crate::phone_image::prepare(images);
         self.changed();
         Ok(())
     }
 
     /// Starts one of the party's quizzes, for the host.
     pub fn start_quiz(&self, quiz: usize) -> Result<(), NotNow> {
+        // In case the party did not start through setup, e.g. the headless one, its photos' copies are made now.
+        let images = self.hub().party.image_files(quiz);
+        crate::phone_image::prepare(images);
         self.host(|party, now| party.start_quiz(quiz, now))
     }
 
@@ -423,6 +494,10 @@ impl Shared {
             hub.broadcast_phase(now);
             drop(hub);
             self.changed();
+        } else if hub.answer_count_due && hub.party.phase == Phase::Question {
+            hub.broadcast_answer_count();
+        } else {
+            hub.send_lobby_if_due();
         }
     }
 }
@@ -506,6 +581,9 @@ pub fn new_shared(party: Party) -> Arc<Shared> {
             conns: HashMap::new(),
             next_conn: 1,
             next_nonce: 1,
+            answer_count_sent: None,
+            answer_count_due: false,
+            lobby_sent: None,
         }),
         changes: watch::channel(0).0,
     })
@@ -533,7 +611,7 @@ pub async fn serve(listener: tokio::net::TcpListener, shared: Arc<Shared>) -> st
         )
         .route(WEBSOCKET_PATH, get(websocket))
         .route(PARTY_INFO_PATH, get(party_info))
-        .route("/quiz/{quiz}/{*file}", get(quiz_image))
+        .route("/image/{quiz}/{index}", get(quiz_image))
         .with_state(shared);
     axum::serve(listener, app).await
 }
@@ -559,19 +637,24 @@ async fn party_info(State(shared): State<Arc<Shared>>) -> Response {
     ([(header::CACHE_CONTROL, "no-store")], axum::Json(info)).into_response()
 }
 
-/// One of a quiz's images, for the phones, only from inside the quiz's folder.
-async fn quiz_image(Path((quiz, file)): Path<(usize, String)>, State(shared): State<Arc<Shared>>) -> Response {
-    let folder: Option<PathBuf> = shared.hub().party.quizzes.get(quiz).map(|quiz| quiz.folder.clone());
-    let found = folder.and_then(|folder| {
-        let folder = folder.canonicalize().ok()?;
-        let path = folder.join(&file).canonicalize().ok()?;
-        path.starts_with(&folder).then_some(path)
-    });
-    let Some(path) = found else {
+/// A question's image, for the phones: only the question being asked or the next one's, and a smaller copy of a big
+/// photo. Phones may keep it, as its address names the party, see [`crate::party::Party::images_key`].
+async fn quiz_image(Path((quiz, index)): Path<(usize, usize)>, State(shared): State<Arc<Shared>>) -> Response {
+    let Some(original) = shared.hub().party.phone_image(quiz, index) else {
         return StatusCode::NOT_FOUND.into_response();
     };
+    let path = tokio::task::spawn_blocking(move || crate::phone_image::for_phone(&original))
+        .await
+        .unwrap_or_default();
     match tokio::fs::read(&path).await {
-        Ok(bytes) => ([(header::CONTENT_TYPE, crate::library::content_type(&path))], bytes).into_response(),
+        Ok(bytes) => (
+            [
+                (header::CONTENT_TYPE, crate::library::content_type(&path)),
+                (header::CACHE_CONTROL, "private, max-age=3600"),
+            ],
+            bytes,
+        )
+            .into_response(),
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
 }
@@ -595,6 +678,7 @@ async fn connection(socket: WebSocket, shared: Arc<Shared>) {
                 player: None,
                 host: false,
                 ping: None,
+                lobby_stale: false,
             },
         );
         id
@@ -718,7 +802,11 @@ fn handle(shared: &Shared, id: ConnId, message: ClientMessage, now: Instant) -> 
                     // In the lobby, everyone, the new player too, is sent the lobby with them in it; otherwise the
                     // new player is sent what the others are shown.
                     if hub.party.phase == Phase::Lobby {
-                        hub.broadcast_lobby();
+                        let lobby = ServerMessage::Lobby {
+                            players: hub.party.lobby(),
+                        };
+                        hub.send(id, lobby);
+                        hub.lobby_changed(Some(id));
                     } else {
                         for message in hub.phase_messages(joined.player, now) {
                             hub.send(id, message);

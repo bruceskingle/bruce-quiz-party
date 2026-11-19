@@ -288,6 +288,8 @@ public struct Reveal: Decodable, Equatable, Sendable {
     public var counts: [UInt32]
     /// A link to read more.
     public var source: String?
+    /// The next question's image, to fetch now, so that it is there as the question is asked.
+    public var nextImage: String?
     /// How this player did, sent only to players.
     public var result: PlayerResult?
 }

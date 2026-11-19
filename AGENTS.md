@@ -34,12 +34,16 @@ Each project can be opened on its own in VS Code (and the iOS app in Xcode).
   messages, the connection, Bonjour browsing, the answer styles), so that `swift test` tests it on the Mac. Its tests
   read `protocol/schema/examples-*.json`, which the protocol's Rust tests write. Formatted with `swift-format`
   (`ios/.swift-format`).
-- `generator/`: the quiz generator, `bruce-quiz-generator`, a Dioxus desktop app for Bruce's own use. It reads
-  Wikipedia itself (`src/wikipedia.rs`: articles with their revisions, and only freely licensed Commons images), asks
-  Claude Code headless with no tools for the questions as JSON (`src/claude.rs`, `src/draft.rs`), and saves a draft
-  in a quizzes folder, or in a library checkout, rewriting its index and, if asked, committing and pushing with the
-  user's own git (`src/publish.rs`; where to save is remembered, `src/settings.rs`), crediting the articles used and
-  the images. `--topic "…"` writes one without the window. It uses the controller's `main.css`.
+- `generator/`: the quiz generator, `bruce-quiz-generator`, a library the controller's Quizzes page uses
+  (`server/src/generator.rs`, "Write a Quiz with Claude", offered only where Claude Code is found), and a command,
+  `--topic "…"`, `--article` and `--instructions`, for scripts. It reads Wikipedia itself (`src/wikipedia.rs`: articles,
+  found for a subject or chosen, with their revisions, and their freely licensed Commons images), asks Claude Code headless with no tools which articles to read
+  (`src/suggest.rs`) and for the questions as JSON (`src/claude.rs`, `src/draft.rs`), and saves a draft in a quizzes folder, or in a library checkout, rewriting its
+  index and, if asked, committing and pushing with the user's own git (`src/publish.rs`; where to save is remembered,
+  `src/settings.rs`), crediting the articles used and the images. A quiz saved in the controller's quizzes opens in
+  its editor.
+- `server/src/phone_image.rs`: smaller copies of big photos for the phones, made with macOS's `sips` and cached;
+  `server/tests/load.rs` plays a question with 100 phones (`LOAD_PLAYERS=500` for more).
 - Libraries: a folder of quiz folders with `library.json` (`quiz_format::library`), on the web or on disk. The
   controller's Quizzes page downloads from one (`server/src/download.rs`), Bruce's,
   `bruceskingle/bruce-quiz-library`, by default, trusting only safe paths and quizzes which read.

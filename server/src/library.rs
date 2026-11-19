@@ -1,5 +1,6 @@
 //! The quiz library: the quizzes in the quizzes folder, listed in the sidebar, with the chosen one's questions
-//! previewed beside it, to edit, or to start a new one.
+//! previewed beside it, to edit, or to start a new one. The page opens on what it is for, not on a quiz, so that the
+//! answers are never shown on a projector until the host chooses a quiz.
 
 use std::path::{Path, PathBuf};
 
@@ -50,7 +51,9 @@ pub fn Library() -> Element {
         let folder = folder.clone();
         move || read_library(&folder)
     });
-    let mut chosen = use_signal(|| 0usize);
+    // The quiz whose questions and answers are shown, None until the host chooses one, as the Mac's screen may be on a
+    // projector; the page opens on what it is for.
+    let mut chosen = use_signal(|| None::<usize>);
     // The library is read each time the page is opened, so that it shows quizzes added since, e.g. by the generator;
     // the next party can be set up with them too.
     use_hook({
@@ -65,6 +68,9 @@ pub fn Library() -> Element {
     let mut editing = use_signal(|| None::<(Option<PathBuf>, Quiz)>);
     // Whether the host is looking at an online library to download quizzes from.
     let mut browsing = use_signal(|| false);
+    // Whether the host is writing a quiz with Claude, which is offered only if Claude Code can be found.
+    let mut writing = use_signal(|| false);
+    let claude = use_hook(|| crate::generator::claude_command(args.claude.as_deref()));
     // Reads the library again after a quiz was saved or downloaded, shows that quiz, and lets the next party choose it.
     let reload = use_callback({
         let folder = folder.clone();
@@ -73,7 +79,7 @@ pub fn Library() -> Element {
             let read = read_library(&folder);
             if let Ok(entries) = &read {
                 if let Some(index) = entries.iter().position(|entry| entry.folder == saved) {
-                    chosen.set(index);
+                    chosen.set(Some(index));
                 }
                 if let Ok(server) = &server {
                     server.shared.set_library(party_library(entries));
@@ -97,6 +103,26 @@ pub fn Library() -> Element {
                                 reload(saved);
                             }
                         },
+                    }
+                }
+            }
+        };
+    }
+
+    if let (true, Some(claude)) = (writing(), claude.clone()) {
+        return rsx! {
+            div { class: "container",
+                div { class: "content",
+                    crate::generator::QuizWriter {
+                        claude,
+                        quizzes: folder.clone(),
+                        // A quiz written into this app's quizzes is listed, and opened in the editor to review.
+                        saved: move |(saved, quiz): (PathBuf, Quiz)| {
+                            writing.set(false);
+                            reload(saved.clone());
+                            editing.set(Some((Some(saved), quiz)));
+                        },
+                        done: move |_| writing.set(false),
                     }
                 }
             }
@@ -139,12 +165,12 @@ pub fn Library() -> Element {
                 for (index , entry) in entries.iter().enumerate() {
                     div {
                         key: "{entry.folder.display()}",
-                        class: match (&entry.quiz, index == chosen()) {
+                        class: match (&entry.quiz, chosen() == Some(index)) {
                             (Err(_), _) => "sidebar-item invalid",
                             (Ok(_), true) => "sidebar-item active",
                             (Ok(_), false) => "sidebar-item",
                         },
-                        onclick: move |_| chosen.set(index),
+                        onclick: move |_| chosen.set(Some(index)),
                         match &entry.quiz {
                             Ok(quiz) => quiz.title.clone(),
                             Err(_) => folder_name(&entry.folder),
@@ -164,10 +190,22 @@ pub fn Library() -> Element {
                     onclick: move |_| browsing.set(true),
                     "Get Quizzes from a Library"
                 }
+                if claude.is_some() {
+                    button {
+                        class: "new-quiz",
+                        onclick: move |_| writing.set(true),
+                        "Write a Quiz with Claude"
+                    }
+                }
             }
             div { class: "content",
-                if let Some(entry) = entries.get(chosen()) {
+                if let Some(entry) = chosen().and_then(|index| entries.get(index)) {
                     div { class: "preview-actions",
+                        button {
+                            title: "Hide this quiz's answers, e.g. before the screen is shown on a projector",
+                            onclick: move |_| chosen.set(None),
+                            "Hide"
+                        }
                         if let Ok(quiz) = &entry.quiz {
                             button {
                                 class: "primary",
@@ -191,6 +229,13 @@ pub fn Library() -> Element {
                         }
                     }
                     QuizPreview { entry: entry.clone() }
+                } else {
+                    LibraryIntro {
+                        quizzes: entries.iter().filter(|entry| entry.quiz.is_ok()).count(),
+                        unreadable: entries.iter().filter(|entry| entry.quiz.is_err()).count(),
+                        folder: folder.clone(),
+                        claude: claude.is_some(),
+                    }
                 }
             }
         }
@@ -216,6 +261,39 @@ fn folder_name(folder: &Path) -> String {
         .file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default()
+}
+
+/// What the Quizzes page is for, shown until a quiz is chosen, so that no answers are on the screen until the host
+/// asks for them.
+#[component]
+fn LibraryIntro(quizzes: usize, unreadable: usize, folder: PathBuf, claude: bool) -> Element {
+    let count = match quizzes {
+        1 => "1 quiz".to_string(),
+        n => format!("{n} quizzes"),
+    };
+    rsx! {
+        h1 { "Quizzes" }
+        p {
+            "The quizzes a party can play: {count} in "
+            "{folder.display()}"
+            "."
+            if unreadable > 0 {
+                span { class: "invalid", " {unreadable} more cannot be read: choose one to see why." }
+            }
+        }
+        p { class: "muted",
+            "Choose a quiz on the left to see its questions and their answers, and to edit it. They stay hidden until you "
+            "do, so this page is safe to show on a projector; Hide puts them away again."
+        }
+        ul { class: "muted",
+            li { "New Quiz starts one from scratch, in the editor." }
+            li { "Get Quizzes from a Library downloads quizzes others have shared." }
+            if claude {
+                li { "Write a Quiz with Claude drafts one on a topic from Wikipedia, for you to review." }
+            }
+            li { "Each quiz is a folder with a quiz.md and its images, which can be edited by hand too." }
+        }
+    }
 }
 
 /// A quiz's settings and questions, or why it could not be read.

@@ -159,10 +159,7 @@ impl Party {
             number: round.index as u32 + 1,
             total: quiz.questions.len() as u32,
             text: question.text.clone(),
-            image: question
-                .image
-                .as_ref()
-                .map(|image| format!("/quiz/{}/{}", round.quiz, image.file)),
+            image: self.image_url(round.quiz, round.index),
             image_alt: question.image.as_ref().map(|image| image.alt.clone()),
             answers: question.answers.clone(),
             time_limit_ms: limit.as_millis() as u32,
@@ -546,6 +543,40 @@ impl Party {
     }
 
     /// Whether the question being asked, or last asked, is its quiz's last.
+    /// The address on the controller's web server of a question's image, for the phones, if it has one: by the quiz
+    /// and question, not the file's name, which might give the answer away.
+    pub fn image_url(&self, quiz: usize, index: usize) -> Option<String> {
+        self.quizzes.get(quiz)?.quiz.questions.get(index)?.image.as_ref()?;
+        Some(format!("/image/{quiz}/{index}?p={}", self.images_key))
+    }
+
+    /// Every image file of one of the party's quizzes, for making the phones' copies ahead.
+    pub fn image_files(&self, quiz: usize) -> Vec<std::path::PathBuf> {
+        let Some(party_quiz) = self.quizzes.get(quiz) else {
+            return Vec::new();
+        };
+        party_quiz
+            .quiz
+            .questions
+            .iter()
+            .filter_map(|question| Some(party_quiz.folder.join(&question.image.as_ref()?.file)))
+            .collect()
+    }
+
+    /// A question's image file, for the phones, only for the question being asked or the next, so that the images of
+    /// questions to come cannot be looked at ahead, and only from inside the quiz's folder.
+    pub fn phone_image(&self, quiz: usize, index: usize) -> Option<std::path::PathBuf> {
+        let round = self.round.as_ref()?;
+        if round.quiz != quiz || !(round.index..=round.index + 1).contains(&index) {
+            return None;
+        }
+        let party_quiz = self.quizzes.get(quiz)?;
+        let image = party_quiz.quiz.questions.get(index)?.image.as_ref()?;
+        let folder = party_quiz.folder.canonicalize().ok()?;
+        let path = folder.join(&image.file).canonicalize().ok()?;
+        path.starts_with(&folder).then_some(path)
+    }
+
     pub fn is_last_question(&self) -> bool {
         self.round
             .as_ref()
@@ -579,6 +610,7 @@ impl Party {
             correct: question.correct as u8,
             counts,
             source: question.source.clone(),
+            next_image: self.image_url(round.quiz, round.index + 1),
             result: None,
         })
     }
