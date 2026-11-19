@@ -24,8 +24,18 @@ impl PartialEq for Entry {
     }
 }
 
-/// Reads the library, giving an error if the folder itself cannot be read.
+/// Reads the library, giving an error if the folder itself cannot be read. The folder is made if it is missing, as it is
+/// the first time the app runs, e.g. a new install, or the App Store's copy in its own container, so that the page
+/// starts empty rather than with an error.
 fn read_library(folder: &Path) -> Result<Vec<Entry>, String> {
+    if !folder.exists() {
+        std::fs::create_dir_all(folder).map_err(|error| {
+            format!(
+                "{:#}",
+                anyhow::Error::from(error).context(format!("cannot make {}", folder.display()))
+            )
+        })?;
+    }
     let entries = quiz_format::load_library(folder).map_err(|error| {
         format!(
             "{:#}",
@@ -68,7 +78,7 @@ pub fn Library() -> Element {
     let mut editing = use_signal(|| None::<(Option<PathBuf>, Quiz)>);
     // Whether the host is looking at an online library to download quizzes from.
     let mut browsing = use_signal(|| false);
-    // Whether the host is writing a quiz with Claude, which is offered only if Claude Code can be found.
+    // Whether the host is writing a quiz with Claude, through Claude Code if it is installed, or Claude's API.
     let mut writing = use_signal(|| false);
     let claude = use_hook(|| crate::generator::claude_command(args.claude.as_deref()));
     // Reads the library again after a quiz was saved or downloaded, shows that quiz, and lets the next party choose it.
@@ -109,12 +119,12 @@ pub fn Library() -> Element {
         };
     }
 
-    if let (true, Some(claude)) = (writing(), claude.clone()) {
+    if writing() {
         return rsx! {
             div { class: "container",
                 div { class: "content",
                     crate::generator::QuizWriter {
-                        claude,
+                        code: claude.clone(),
                         quizzes: folder.clone(),
                         // A quiz written into this app's quizzes is listed, and opened in the editor to review.
                         saved: move |(saved, quiz): (PathBuf, Quiz)| {
@@ -190,12 +200,10 @@ pub fn Library() -> Element {
                     onclick: move |_| browsing.set(true),
                     "Get Quizzes from a Library"
                 }
-                if claude.is_some() {
-                    button {
-                        class: "new-quiz",
-                        onclick: move |_| writing.set(true),
-                        "Write a Quiz with Claude"
-                    }
+                button {
+                    class: "new-quiz",
+                    onclick: move |_| writing.set(true),
+                    "Write a Quiz with Claude"
                 }
             }
             div { class: "content",
@@ -234,7 +242,6 @@ pub fn Library() -> Element {
                         quizzes: entries.iter().filter(|entry| entry.quiz.is_ok()).count(),
                         unreadable: entries.iter().filter(|entry| entry.quiz.is_err()).count(),
                         folder: folder.clone(),
-                        claude: claude.is_some(),
                     }
                 }
             }
@@ -266,7 +273,7 @@ fn folder_name(folder: &Path) -> String {
 /// What the Quizzes page is for, shown until a quiz is chosen, so that no answers are on the screen until the host
 /// asks for them.
 #[component]
-fn LibraryIntro(quizzes: usize, unreadable: usize, folder: PathBuf, claude: bool) -> Element {
+fn LibraryIntro(quizzes: usize, unreadable: usize, folder: PathBuf) -> Element {
     let count = match quizzes {
         1 => "1 quiz".to_string(),
         n => format!("{n} quizzes"),
@@ -288,9 +295,7 @@ fn LibraryIntro(quizzes: usize, unreadable: usize, folder: PathBuf, claude: bool
         ul { class: "muted",
             li { "New Quiz starts one from scratch, in the editor." }
             li { "Get Quizzes from a Library downloads quizzes others have shared." }
-            if claude {
-                li { "Write a Quiz with Claude drafts one on a topic from Wikipedia, for you to review." }
-            }
+            li { "Write a Quiz with Claude drafts one on a topic from Wikipedia, for you to review." }
             li { "Each quiz is a folder with a quiz.md and its images, which can be edited by hand too." }
         }
     }

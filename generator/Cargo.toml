@@ -18,3 +18,5 @@ dirs = "7"
 rand = "0.9"
 # Wikipedia's and Wikimedia Commons' APIs, over macOS's own TLS and certificates, see wikipedia.rs.
 ureq = { version = "3.5", default-features = false, features = ["native-tls-no-default", "json", "gzip"] }
+# The user's key for Claude's API, in the Keychain, see api_key.rs; the same as Bruce's Smart Home uses.
+keyring = "4.2"

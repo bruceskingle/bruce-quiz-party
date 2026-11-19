@@ -4,7 +4,8 @@
 use std::path::PathBuf;
 
 use bruce_quiz_generator::{
-    claude,
+    api_key,
+    claude::{self, Choice, Claude},
     draft::{Difficulty, Request},
     generate, settings,
     settings::Destination,
@@ -40,12 +41,44 @@ struct Args {
     /// With --library, commit and push the quiz with git.
     #[arg(long, requires = "library")]
     publish: bool,
-    /// The Claude Code command. By default, `claude` on the PATH, or the copy that comes with the VS Code extension.
-    #[arg(long)]
+    /// Asks Claude Code, the command at this path, rather than as the controller last chose.
+    #[arg(long, conflicts_with = "model")]
     claude: Option<PathBuf>,
+    /// Asks Claude's API, with this model, e.g. claude-opus-5-5, rather than as the controller last chose. The API key
+    /// is ANTHROPIC_API_KEY's, or else the one saved in the Keychain by the controller.
+    #[arg(long)]
+    model: Option<String>,
 }
 
 impl Args {
+    /// How to ask Claude: as given, or else as the controller's Quizzes page last chose.
+    fn claude(&self) -> anyhow::Result<Claude> {
+        let code = || {
+            claude::find(self.claude.as_deref())
+                .map(Claude::Code)
+                .ok_or_else(|| anyhow::anyhow!("Claude Code cannot be found: install it, or give --claude <path>"))
+        };
+        let api = |model: String| -> anyhow::Result<Claude> {
+            let key = match std::env::var("ANTHROPIC_API_KEY") {
+                Ok(key) if !key.trim().is_empty() => key,
+                _ => api_key::load()?.ok_or_else(|| {
+                    anyhow::anyhow!("there is no API key: set ANTHROPIC_API_KEY, or save one in the controller")
+                })?,
+            };
+            Ok(Claude::Api { key, model })
+        };
+        if self.claude.is_some() {
+            return code();
+        }
+        if let Some(model) = &self.model {
+            return api(model.clone());
+        }
+        match claude::saved_choice(claude::find(None).is_some()) {
+            Choice::Code => code(),
+            Choice::Api { model } => api(model),
+        }
+    }
+
     /// Where to save: as given, or else where the controller's Quizzes page last chose.
     fn destination(&self) -> Destination {
         if let Some(path) = &self.quizzes {
@@ -70,8 +103,7 @@ fn main() {
 }
 
 fn run(args: &Args) -> anyhow::Result<()> {
-    let claude = claude::find(args.claude.as_deref())
-        .ok_or_else(|| anyhow::anyhow!("Claude Code cannot be found: install it, or give --claude <path>"))?;
+    let claude = args.claude()?;
     let request = Request {
         topic: args.topic.clone(),
         articles: args.article.iter().map(|given| article_title(given)).collect(),

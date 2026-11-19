@@ -39,7 +39,8 @@ questions on their phones, scoring more the faster they answer.
   articles to read, in a first, short request, which are checked against Wikipedia; so the credits and
   licences are exact and checked in code. Lists are read after other articles, and only the articles questions come
   from are credited. It names itself to Wikimedia with the project's GitHub address (Bruce's choice, 17 Nov 2026). The
-  Anthropic API key option is left for later; it uses Claude Code on Bruce's subscription.
+  Anthropic API option was added on 19 Nov 2026, for the Mac App Store's copy, which the sandbox keeps from running
+  Claude Code: each user's own key, in the Keychain, and a model they choose from a dropdown.
 - **Libraries** (17 Nov 2026): a library is a folder of quiz folders with an index, `library.json`, served from
   anywhere, e.g. a GitHub repository's raw files; Bruce's is `bruceskingle/bruce-quiz-library`. The generator saves
   into a quizzes folder or a library's local checkout, committing and pushing with the user's git if asked, so that
@@ -50,10 +51,10 @@ questions on their phones, scoring more the faster they answer.
 ## Projects
 
 - `server/`: the party controller, a Dioxus desktop app for macOS. Runs the party, shows the big-screen display,
-  hosts the quiz editor and the quiz generator's page, and serves the browser client. It needs Claude Code only to
-  write quizzes, and offers to only where it is installed.
-- `generator/`: the quiz generator, a library the controller uses, and a command, which use Claude Code and Wikipedia
-  to write quiz files.
+  hosts the quiz editor and the quiz generator's page, and serves the browser client. It writes quizzes with Claude
+  Code, where it is installed, or Claude's API, with the user's own key.
+- `generator/`: the quiz generator, a library the controller uses, and a command, which use Claude, through Claude
+  Code or the API, and Wikipedia to write quiz files.
 - `ios/`: the iOS app, SwiftUI, a thin client with a player mode and a host mode. All game logic is in the controller.
 - `web/`: the browser player client, served by the controller, for guests without the iOS app.
 - `protocol/`: the message definitions and their JSON Schema, so that Rust and Swift stay in step.
@@ -108,16 +109,17 @@ player, end the party.
 
 ## Quiz generator
 
-Part of the controller, on its Quizzes page, since 17 Nov 2026 (it was a separate app), offered only where Claude Code
-is installed; also a command, for scripts. The user enters a short subject, and optionally the number
+Part of the controller, on its Quizzes page, since 17 Nov 2026 (it was a separate app); also a command, for
+scripts. The user enters a short subject, and optionally the number
 of questions and the difficulty, the Wikipedia articles to write from: chosen by Claude as the best-known on the subject, as
 Wikipedia's search matches words, not fame, and checked to exist; or the best of a Wikipedia category; or given by title
 or link (19 Nov 2026). Suggest Articles lists them to change before writing. About one article is read for each
 question, so that a quiz covers its subject broadly, less of each when there are many, and instructions for Claude in their own words, e.g. "every question is a
 picture question" (19 Nov 2026), which go into the prompt as they are. Claude is offered each article's freely licensed
 images, in the order they appear in it, not only its main one. The generator has Claude write a draft quiz, running
-Claude Code headless (`claude -p`) with Bruce's own subscription, or optionally an Anthropic API key kept in the
-Keychain. The draft is opened in the controller's editor for review before play.
+Claude Code headless (`claude -p`) on the user's own subscription, or calling Claude's API with the user's own key,
+kept in the Keychain, and the model they choose, Claude Opus 5.5 unless they choose another (19 Nov 2026). The API
+is the only way in the Mac App Store's copy, which the sandbox keeps from running Claude Code. The draft is opened in the controller's editor for review before play.
 
 ## Licences of quiz content
 

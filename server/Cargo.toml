@@ -28,12 +28,16 @@ qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 rand = "0.9"
 # Downloading quizzes from an online library, over macOS's own TLS and certificates, see download.rs.
 ureq = { version = "3.5", default-features = false, features = ["native-tls-no-default", "gzip"] }
+# The system's Open dialog, for choosing a library's folder, see folder_access.rs; already used by Dioxus.
+rfd = { version = "0.17", default-features = false }
 
 # Setting the Dock's icon as the app starts, see dock_icon.rs; already used by Dioxus's windows, so nothing new.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
 objc2-app-kit = { version = "0.3", features = ["NSApplication", "NSImage", "NSResponder"] }
-objc2-foundation = { version = "0.3", features = ["NSData"] }
+# And the security-scoped bookmarks which keep a sandboxed app's access to the folders the host chose, see
+# folder_access.rs.
+objc2-foundation = { version = "0.3", features = ["NSArray", "NSData", "NSError", "NSString", "NSURL"] }
 
 [dev-dependencies]
 # A WebSocket client, for the tests which join the party as a phone would.
@@ -53,3 +57,7 @@ path = "src/main.rs"
 [features]
 default = ["desktop"]
 desktop = ["dioxus/desktop"]
+# The Mac App Store's build, which the App Sandbox keeps from running other programs: it leaves out writing quizzes
+# with Claude Code, and saving them into a library's git checkout to publish them, which runs git. Built with
+# `dx bundle --release --features store`.
+store = []

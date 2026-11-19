@@ -1,12 +1,15 @@
 //! Writing a quiz with Claude, on the Quizzes page: a subject, the Wikipedia articles to write from, found for it or
 //! chosen, anything else for Claude in the user's own words, how many questions and how hard, and where to save it,
-//! this app's quizzes, to play and edit it here, or a library checkout, to share it. It is offered only where Claude
-//! Code can be found, as it runs Claude Code on the user's own subscription, see the generator crate.
+//! this app's quizzes, to play and edit it here, or a library checkout, to share it. Claude is asked through Claude
+//! Code, on the user's own subscription, where it is installed and the app may run it, or through Claude's API, with
+//! the user's own key and the model they choose, see the generator crate's claude.rs.
 
 use std::path::{Path, PathBuf};
 
 use dioxus::prelude::*;
 use generator::{
+    api_key,
+    claude::{self, Choice, Claude, MODELS},
     draft::{Difficulty, Request},
     generate::{self, MAX_ARTICLES},
     settings::{self, Destination},
@@ -15,8 +18,12 @@ use generator::{
 use quiz_format::Quiz;
 
 /// The Claude Code command, if it can be found: the one given, else `claude` on the PATH or in its usual places, else
-/// the copy that comes with the VS Code extension.
+/// the copy that comes with the VS Code extension. Never in the Mac App Store's build, whose sandbox would not let it
+/// run.
 pub fn claude_command(given: Option<&Path>) -> Option<PathBuf> {
+    if crate::STORE {
+        return None;
+    }
     generator::claude::find(given)
 }
 
@@ -37,7 +44,8 @@ enum Outcome {
 /// quizzes is handed to `saved`, for the Quizzes page to open in the editor.
 #[component]
 pub fn QuizWriter(
-    claude: PathBuf,
+    /// Claude Code, if it is installed.
+    code: Option<PathBuf>,
     quizzes: PathBuf,
     saved: EventHandler<(PathBuf, Quiz)>,
     done: EventHandler<()>,
@@ -46,8 +54,9 @@ pub fn QuizWriter(
     let mut destination = use_signal({
         let quizzes = quizzes.clone();
         move || match settings::load() {
-            library @ Destination::Library { .. } => library,
-            Destination::Folder { .. } => Destination::Folder { path: quizzes },
+            // The Mac App Store's build saves only into its own quizzes, see DestinationChooser.
+            library @ Destination::Library { .. } if !crate::STORE => library,
+            _ => Destination::Folder { path: quizzes },
         }
     });
     let mut topic = use_signal(String::new);
@@ -62,6 +71,8 @@ pub fn QuizWriter(
     let mut steps = use_signal(Vec::<String>::new);
     let mut running = use_signal(|| false);
     let mut outcome = use_signal(|| None::<Outcome>);
+    // How to ask Claude, as chosen below, or None until it can be asked, e.g. without an API key.
+    let asker = use_signal(|| None::<Claude>);
 
     // What the page asks for, as it stands.
     let request = move || Request {
@@ -73,13 +84,12 @@ pub fn QuizWriter(
     };
 
     let write = {
-        let claude = claude.clone();
         move |_| {
             let request = request();
             if request.topic.is_empty() && request.articles.is_empty() {
                 return;
             }
-            let claude = claude.clone();
+            let Some(claude) = asker() else { return };
             let destination = destination();
             running.set(true);
             steps.set(Vec::new());
@@ -104,7 +114,6 @@ pub fn QuizWriter(
     // Fills in the articles to write from, for the user to change before writing: the best of any category listed,
     // with the other articles listed; else those for the subject, as Claude chooses them.
     let suggest = {
-        let claude = claude.clone();
         move |_| {
             let mut request = request();
             if !request.articles.iter().any(|line| category_name(line).is_some()) {
@@ -113,7 +122,7 @@ pub fn QuizWriter(
             if request.topic.is_empty() && request.articles.is_empty() {
                 return;
             }
-            let claude = claude.clone();
+            let Some(claude) = asker() else { return };
             suggesting.set(true);
             steps.set(Vec::new());
             outcome.set(None);
@@ -133,11 +142,13 @@ pub fn QuizWriter(
         }
     };
     let busy = running() || suggesting();
-    let can_write = !topic().trim().is_empty() || !article_titles(&articles()).is_empty();
-    let can_suggest = !topic().trim().is_empty()
-        || article_titles(&articles())
-            .iter()
-            .any(|line| category_name(line).is_some());
+    let can_ask = asker.read().is_some();
+    let can_write = can_ask && (!topic().trim().is_empty() || !article_titles(&articles()).is_empty());
+    let can_suggest = can_ask
+        && (!topic().trim().is_empty()
+            || article_titles(&articles())
+                .iter()
+                .any(|line| category_name(line).is_some()));
 
     rsx! {
         div { class: "editor generator",
@@ -150,16 +161,21 @@ pub fn QuizWriter(
                 "Writes a draft quiz from Wikipedia's articles on a topic, crediting them and its images, with Claude. "
                 "Review it in the editor before playing or sharing it."
             }
-            DestinationChooser {
-                destination: destination(),
-                quizzes: quizzes.clone(),
-                disabled: running(),
-                onchange: move |chosen: Destination| {
-                    if let Err(error) = settings::save(&chosen) {
-                        eprintln!("Cannot remember where to save quizzes: {error:#}");
-                    }
-                    destination.set(chosen);
-                },
+            ClaudeChooser { code: code.clone(), disabled: busy, asker }
+            // The Mac App Store's build saves only into this app's quizzes, as publishing to a library runs git, which
+            // its sandbox would not let it.
+            if !crate::STORE {
+                DestinationChooser {
+                    destination: destination(),
+                    quizzes: quizzes.clone(),
+                    disabled: running(),
+                    onchange: move |chosen: Destination| {
+                        if let Err(error) = settings::save(&chosen) {
+                            eprintln!("Cannot remember where to save quizzes: {error:#}");
+                        }
+                        destination.set(chosen);
+                    },
+                }
             }
             label { class: "generator-label", "Subject" }
             div { class: "generator-form",
@@ -229,7 +245,6 @@ pub fn QuizWriter(
                     }
                 }
             }
-            p { class: "muted small", "Using Claude Code at {claude.display()}, on your subscription." }
             if !steps.read().is_empty() {
                 ol { class: "steps",
                     for (index , step) in steps.read().iter().enumerate() {
@@ -245,6 +260,134 @@ pub fn QuizWriter(
                     DraftPreview { folder, quiz }
                 },
                 None => rsx! {},
+            }
+        }
+    }
+}
+
+/// How to ask Claude: Claude Code, if it is installed, on the user's subscription, or Claude's API with a model they
+/// choose, and their API key, kept in the Keychain. Sets `asker` to the way chosen, or None while it cannot be used,
+/// e.g. with no API key.
+#[component]
+fn ClaudeChooser(code: Option<PathBuf>, disabled: bool, mut asker: Signal<Option<Claude>>) -> Element {
+    let mut choice = use_signal(|| match claude::saved_choice(code.is_some()) {
+        Choice::Code if code.is_none() => Choice::default(),
+        choice => choice,
+    });
+    // The key saved, or why it cannot be read.
+    let mut key = use_signal(|| api_key::load().map_err(|error| format!("{error:#}")));
+    // A key being typed, while there is none or it is being changed.
+    let mut typed = use_signal(String::new);
+    let mut changing = use_signal(|| false);
+    let mut key_error = use_signal(|| None::<String>);
+
+    use_effect({
+        let code = code.clone();
+        move || {
+            let chosen = match choice() {
+                Choice::Code => code.clone().map(Claude::Code),
+                Choice::Api { model } => match key() {
+                    Ok(Some(key)) => Some(Claude::Api { key, model }),
+                    _ => None,
+                },
+            };
+            asker.set(chosen);
+        }
+    });
+
+    let selected = match choice() {
+        Choice::Code => "code".to_string(),
+        Choice::Api { model } => model,
+    };
+    let on_api = matches!(choice(), Choice::Api { .. });
+    let saved = matches!(key(), Ok(Some(_)));
+    let mut save_key = move || match api_key::save(&typed()) {
+        Ok(()) => {
+            key.set(Ok(Some(typed().trim().to_string())));
+            typed.set(String::new());
+            changing.set(false);
+            key_error.set(None);
+        }
+        Err(error) => key_error.set(Some(format!("{error:#}"))),
+    };
+
+    rsx! {
+        fieldset { class: "destination", disabled,
+            legend { "Ask Claude with" }
+            select {
+                value: "{selected}",
+                onchange: move |event: FormEvent| {
+                    let chosen = if event.value() == "code" {
+                        Choice::Code
+                    } else {
+                        Choice::Api { model: event.value() }
+                    };
+                    if let Err(error) = claude::save_choice(&chosen) {
+                        eprintln!("Cannot remember how to ask Claude: {error:#}");
+                    }
+                    choice.set(chosen);
+                },
+                if code.is_some() {
+                    option { value: "code", selected: selected == "code", "Claude Code, on your Claude subscription" }
+                }
+                for model in MODELS {
+                    option {
+                        key: "{model.id}",
+                        value: model.id,
+                        selected: selected == model.id,
+                        "{model.name}, with your API key: {model.cost}"
+                    }
+                }
+            }
+            if on_api {
+                if saved && !changing() {
+                    p { class: "muted small",
+                        "Your API key is saved in the Keychain; what Claude writes is billed to it. "
+                        button { onclick: move |_| changing.set(true), "Change Key" }
+                        " "
+                        button {
+                            onclick: move |_| match api_key::forget() {
+                                Ok(()) => key.set(Ok(None)),
+                                Err(error) => key_error.set(Some(format!("{error:#}"))),
+                            },
+                            "Forget Key"
+                        }
+                    }
+                } else {
+                    p { class: "muted small",
+                        "Claude's API needs your own API key, which you can make in the Claude Console, "
+                        "console.anthropic.com; what Claude writes is billed to it. It is kept in the Keychain."
+                    }
+                    div { class: "generator-form",
+                        input {
+                            r#type: "password",
+                            placeholder: "Your API key, sk-ant-…",
+                            value: "{typed}",
+                            oninput: move |event| typed.set(event.value()),
+                            onkeydown: move |event: KeyboardEvent| {
+                                if event.key() == Key::Enter {
+                                    save_key();
+                                }
+                            },
+                        }
+                        button {
+                            disabled: typed().trim().is_empty(),
+                            onclick: move |_| save_key(),
+                            "Save Key"
+                        }
+                        if changing() {
+                            button { onclick: move |_| changing.set(false), "Cancel" }
+                        }
+                    }
+                }
+                if let Err(error) = key() {
+                    p { class: "invalid small", "{error}" }
+                }
+                if let Some(error) = key_error() {
+                    p { class: "invalid small", "{error}" }
+                }
+            } else if let Some(code) = &code {
+                p { class: "muted small", "Claude Code at {code.display()}." }
             }
         }
     }

@@ -47,13 +47,15 @@ The Quizzes page lists the quizzes, with Edit and New Quiz: the editor has a gra
 scores as time passes, for choosing the scoring, and saves the quiz as a person would write it. A question's image is
 chosen from the images in the quiz's folder; Show in Finder opens it to add them.
 
-If Claude Code is installed (`claude` on the PATH, or the copy that comes with its VS Code extension, or given with
-`--claude <path>`), the Quizzes page also offers Write a Quiz with Claude: it reads Wikipedia's articles on a topic
-and has Claude write the questions, on your own Claude subscription. It credits the articles and images under CC
+The Quizzes page also offers Write a Quiz with Claude: it reads Wikipedia's articles on a topic and has Claude write
+the questions, either with Claude Code, on your own Claude subscription, if it is installed (`claude` on the PATH, or the
+copy that comes with its VS Code extension, or given with `--claude <path>`), or with Claude's API, with your own API key,
+made in the Claude Console and kept in the Keychain, and the model you choose, billed to your key. It credits the articles and images under CC
 BY-SA, using only freely licensed images, and opens the draft in the editor to review. It saves either into the app's
 quizzes, to play it here, or into a local checkout of a library's git repository, committing and pushing it if you
 ask, to share it. The same is done from the command line with
-`cargo run -p bruce-quiz-generator -- --topic "The Moon" --quizzes <folder>`. A library is a folder of quizzes with an index,
+`cargo run -p bruce-quiz-generator -- --topic "The Moon" --quizzes <folder>`, asking Claude as the Quizzes page last
+chose, or with `--claude <path>`, or `--model <id>` and the key in `ANTHROPIC_API_KEY` or the Keychain. A library is a folder of quizzes with an index,
 `library.json`, on the web or on disk: the controller's Quizzes page lists Bruce's,
 [bruce-quiz-library](https://github.com/bruceskingle/bruce-quiz-library), or any other you give it, and downloads
 quizzes from it.

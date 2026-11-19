@@ -35,10 +35,12 @@ Each project can be opened on its own in VS Code (and the iOS app in Xcode).
   read `protocol/schema/examples-*.json`, which the protocol's Rust tests write. Formatted with `swift-format`
   (`ios/.swift-format`).
 - `generator/`: the quiz generator, `bruce-quiz-generator`, a library the controller's Quizzes page uses
-  (`server/src/generator.rs`, "Write a Quiz with Claude", offered only where Claude Code is found), and a command,
+  (`server/src/generator.rs`, "Write a Quiz with Claude"), and a command,
   `--topic "…"`, `--article` and `--instructions`, for scripts. It reads Wikipedia itself (`src/wikipedia.rs`: articles,
-  found for a subject or chosen, with their revisions, and their freely licensed Commons images), asks Claude Code headless with no tools which articles to read
-  (`src/suggest.rs`) and for the questions as JSON (`src/claude.rs`, `src/draft.rs`), and saves a draft in a quizzes folder, or in a library checkout, rewriting its
+  found for a subject or chosen, with their revisions, and their freely licensed Commons images), asks Claude which articles to read
+  (`src/suggest.rs`) and for the questions as JSON (`src/claude.rs`, `src/draft.rs`), through Claude Code headless
+  with no tools, or Claude's API with the user's own key, in the Keychain (`src/api_key.rs`), and the model they
+  choose, and saves a draft in a quizzes folder, or in a library checkout, rewriting its
   index and, if asked, committing and pushing with the user's own git (`src/publish.rs`; where to save is remembered,
   `src/settings.rs`), crediting the articles used and the images. A quiz saved in the controller's quizzes opens in
   its editor.
@@ -55,6 +57,11 @@ to crates.io, unlike Bruce's other libraries.
 
 - Run the controller with `dx serve` in `server/`, not `cargo run`, as Dioxus bundles the assets. Give it arguments
   with `--args`, e.g. `dx serve --args="--quizzes ../quizzes"`. `cargo build` and `cargo test` are fine.
+- The Mac App Store's build of the controller has the `store` feature (`dx bundle --release --features store`), which
+  leaves out what its App Sandbox would not let it do: writing quizzes with Claude Code (the API remains), and saving
+  them into a library's git checkout to publish them. Check it builds and passes clippy both ways. Its sandbox also
+  means: folders outside its container only through the Open dialog, remembered with bookmarks
+  (`server/src/folder_access.rs`); no other programs run, except macOS's own, e.g. `sips`.
 - `cargo test --workspace` runs every test. After changing a message in `protocol/`, regenerate its schema with
   `UPDATE_SCHEMA=1 cargo test -p bruce-quiz-protocol`, and change the Swift types to match, in
   `ios/QuizPartyKit/Sources/QuizPartyKit/Protocol.swift`; `swift test --package-path ios/QuizPartyKit` checks them.

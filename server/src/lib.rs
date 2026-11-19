@@ -1,12 +1,16 @@
 //! Bruce's Quiz Party's controller: the Mac app which runs a quiz party, shows its big screen, and serves the web
 //! client the players' phones join.
 
+/// Whether this is the Mac App Store's build, see the `store` feature in Cargo.toml.
+pub const STORE: bool = cfg!(feature = "store");
+
 mod answer_shape;
 mod big_screen;
 mod bonjour;
 mod dock_icon;
 mod download;
 mod editor;
+mod folder_access;
 pub mod game;
 mod generator;
 mod library;

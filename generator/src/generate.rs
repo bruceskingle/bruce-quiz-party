@@ -1,12 +1,12 @@
 //! Generating a quiz from start to finish: reading Wikipedia, asking Claude, and saving the draft with its images,
 //! telling the window how it is going.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use quiz_format::Quiz;
 
 use crate::{
-    claude,
+    claude::{self, Claude},
     draft::{self, Request},
     publish,
     settings::Destination,
@@ -18,7 +18,7 @@ use crate::{
 /// folder and the quiz, and saying each step as it starts.
 pub fn generate(
     request: &Request,
-    claude_path: &Path,
+    claude: &Claude,
     destination: &Destination,
     progress: &dyn Fn(String),
 ) -> anyhow::Result<(PathBuf, Quiz)> {
@@ -35,7 +35,7 @@ pub fn generate(
         ),
     }
     let wikipedia = Wikipedia::new();
-    let titles = articles_with(&wikipedia, request, claude_path, progress)?;
+    let titles = articles_with(&wikipedia, request, claude, progress)?;
 
     let mut articles: Vec<Article> = Vec::new();
     let titles_count = titles.len().max(1);
@@ -87,7 +87,7 @@ pub fn generate(
         pictures.len()
     ));
     let prompt = draft::prompt(request, &articles, &pictures);
-    let answer = claude::ask(claude_path, &prompt, &draft::schema())?;
+    let answer = claude::ask(claude, &prompt, &draft::schema())?;
     let draft = draft::build(answer, &articles, &pictures)?;
 
     progress(format!(
@@ -123,8 +123,8 @@ fn articles_for(questions: usize) -> usize {
 
 /// The Wikipedia articles to write a quiz from, for the user to look at and change before writing it: as
 /// [`generate`] would choose them.
-pub fn suggest(request: &Request, claude_path: &Path, progress: &dyn Fn(String)) -> anyhow::Result<Vec<String>> {
-    articles_with(&Wikipedia::new(), request, claude_path, progress)
+pub fn suggest(request: &Request, claude: &Claude, progress: &dyn Fn(String)) -> anyhow::Result<Vec<String>> {
+    articles_with(&Wikipedia::new(), request, claude, progress)
 }
 
 /// The articles to write from: those listed, with any category listed replaced by the best of its articles; or else
@@ -133,7 +133,7 @@ pub fn suggest(request: &Request, claude_path: &Path, progress: &dyn Fn(String))
 fn articles_with(
     wikipedia: &Wikipedia,
     request: &Request,
-    claude_path: &Path,
+    claude: &Claude,
     progress: &dyn Fn(String),
 ) -> anyhow::Result<Vec<String>> {
     let wanted = articles_for(request.questions);
@@ -179,7 +179,7 @@ fn articles_with(
                 "Asking Claude which {wanted} of the category's {} articles to read…",
                 members.len()
             ));
-            match ask_for_articles(wikipedia, request, claude_path, wanted, &members) {
+            match ask_for_articles(wikipedia, request, claude, wanted, &members) {
                 Ok(chosen) if !chosen.is_empty() => chosen,
                 Ok(_) => members.into_iter().take(wanted).collect(),
                 Err(error) => {
@@ -199,7 +199,7 @@ fn articles_with(
     let topic = request.topic.trim();
     anyhow::ensure!(!topic.is_empty(), "there is no subject, nor any articles");
     progress(format!("Asking Claude which articles about “{topic}” to read…"));
-    match ask_for_articles(wikipedia, request, claude_path, wanted, &[]) {
+    match ask_for_articles(wikipedia, request, claude, wanted, &[]) {
         // Too few is a sign that Claude did not know the subject's articles.
         Ok(chosen) if chosen.len() >= wanted.min(3) => return Ok(chosen),
         Ok(_) => progress("Claude found too few, so searching Wikipedia instead.".into()),
@@ -217,7 +217,7 @@ fn articles_with(
 fn ask_for_articles(
     wikipedia: &Wikipedia,
     request: &Request,
-    claude_path: &Path,
+    claude: &Claude,
     wanted: usize,
     candidates: &[String],
 ) -> anyhow::Result<Vec<String>> {
@@ -227,11 +227,7 @@ fn ask_for_articles(
     } else {
         wanted
     };
-    let answer = claude::ask(
-        claude_path,
-        &suggest::prompt(request, asked, candidates),
-        &suggest::schema(),
-    )?;
+    let answer = claude::ask(claude, &suggest::prompt(request, asked, candidates), &suggest::schema())?;
     let titles: Vec<String> = suggest::titles(answer)?
         .into_iter()
         .filter(|title| candidates.is_empty() || candidates.contains(title))

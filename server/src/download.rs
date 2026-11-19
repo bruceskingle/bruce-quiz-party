@@ -1,5 +1,5 @@
 //! Downloading quizzes from a library: a folder of quiz folders with an index, `library.json`, at a web address, e.g. a
-//! GitHub repository's raw files, or in a folder. What is downloaded is not trusted: only the files the index lists,
+//! GitHub repository's raw files, or in a folder, where the index may be left out, as the folder can be listed. What is downloaded is not trusted: only the files the index lists,
 //! which must be safe paths inside the quiz's folder and a quiz file or images, and only a quiz which reads; it
 //! replaces a quiz of the same folder only then.
 
@@ -43,8 +43,15 @@ impl Library {
         }
     }
 
-    /// The library's index.
+    /// The library's index: its `library.json`, or, for a folder without one, e.g. a folder of quizzes which has not
+    /// been published as a library, the index made from its quiz folders, with the same rules as a published one.
     pub fn index(&self) -> anyhow::Result<LibraryIndex> {
+        if let Library::Folder(folder) = self
+            && !folder.join(LIBRARY_INDEX).exists()
+        {
+            return quiz_format::library::index_library(folder)
+                .with_context(|| format!("cannot read {}", folder.display()));
+        }
         let bytes = self.read(LIBRARY_INDEX)?;
         LibraryIndex::parse(&String::from_utf8_lossy(&bytes)).context("the library's index is not as expected")
     }
@@ -177,6 +184,9 @@ pub fn LibraryBrowser(quizzes: PathBuf, downloaded: EventHandler<PathBuf>, done:
 
     let mut look = move || {
         let library = Library::new(&address());
+        if let Library::Folder(folder) = &library {
+            crate::folder_access::resume(folder);
+        }
         save_library(&address());
         looking.set(true);
         spawn(async move {
@@ -225,8 +235,9 @@ pub fn LibraryBrowser(quizzes: PathBuf, downloaded: EventHandler<PathBuf>, done:
                 button { onclick: move |_| done.call(()), "Done" }
             }
             p { class: "muted",
-                "A library is a folder of quizzes with an index, library.json, on the web or in a folder: Bruce's is "
-                "the default. Quizzes drawn from Wikipedia are under CC BY-SA, with their credits in them."
+                "A library is a folder of quizzes with an index, library.json, on the web or in a folder, where any "
+                "folder of quizzes will do: Bruce's is the default. Quizzes drawn from Wikipedia are under CC BY-SA, "
+                "with their credits in them."
             }
             div { class: "library-address",
                 input {
@@ -234,6 +245,28 @@ pub fn LibraryBrowser(quizzes: PathBuf, downloaded: EventHandler<PathBuf>, done:
                     oninput: move |event| address.set(event.value()),
                 }
                 button { disabled: looking(), onclick: move |_| look(), "Look" }
+                button {
+                    disabled: looking(),
+                    title: "A library in a folder, chosen here so that the app may read it, and can again next time",
+                    onclick: move |_| {
+                        let start = match Library::new(&address()) {
+                            Library::Folder(folder) => Some(folder),
+                            Library::Web(_) => None,
+                        };
+                        spawn(async move {
+                            if let Some(folder) = crate::folder_access::choose(
+                                    "Choose a library's folder",
+                                    start.as_deref(),
+                                )
+                                .await
+                            {
+                                address.set(folder.display().to_string());
+                                look();
+                            }
+                        });
+                    },
+                    "Choose Folder…"
+                }
                 button {
                     onclick: move |_| {
                         address.set(DEFAULT_LIBRARY.to_string());
@@ -353,6 +386,10 @@ mod tests {
         assert_eq!(folder, quizzes.0.join("flags"));
         assert_eq!(Quiz::load(&folder).unwrap().title, "Flags");
         assert!(folder.join("images/flag.png").is_file());
+
+        // A folder of quizzes without an index is indexed from its folders.
+        std::fs::remove_file(library.0.join(LIBRARY_INDEX)).unwrap();
+        assert_eq!(source.index().unwrap(), index);
 
         // A quiz which no longer reads does not replace the one there.
         std::fs::write(library.0.join("flags/quiz.md"), "broken").unwrap();
