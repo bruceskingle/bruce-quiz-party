@@ -1,9 +1,0 @@
-[application]
-name = "Bruces Quiz Generator"
-
-[bundle]
-identifier = "org.skingle.bruce-quiz-generator"
-publisher = "BruceSkingle"
-
-[web.app]
-title = "Bruce's Quiz Generator"
