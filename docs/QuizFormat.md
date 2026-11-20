@@ -128,6 +128,6 @@ files, so that it can be served from anywhere, e.g. a GitHub repository's raw fi
 }
 ```
 
-The generator writes it when it saves a quiz into a library. The controller downloads only the files listed, `quiz.md`
-first, each a path inside the quiz's folder made of letters, digits, `-`, `_` and `.`, and a quiz file or an image;
-and keeps a quiz only if it reads.
+The controller's Add to Library writes it, making it if there is none, as does the generator when it saves a quiz
+into a library. The controller downloads only the files listed, `quiz.md` first, each a path inside the quiz's folder
+made of letters, digits, `-`, `_` and `.`, and a quiz file or an image; and keeps a quiz only if it reads.

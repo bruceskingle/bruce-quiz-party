@@ -387,7 +387,39 @@ function showResult(reveal) {
     $("result-rank").textContent = "You're " + ordinal(result.quiz_rank) + " with " + result.quiz_score + " points";
     $("result-answer").textContent = result.correct ? "" : "The answer was " + correctText;
   }
+  showCounts(reveal);
   show("result");
+}
+
+/**
+ * Shows every answer with how many chose it, as the big screen does: a row per answer, in its colour and shape, with
+ * its text, its count, and a bar across it as long as its share of the most chosen; the correct answer's bright and
+ * ticked and the others faded, and this player's choice outlined.
+ */
+function showCounts(reveal) {
+  const chart = $("result-chart");
+  const counts = reveal.counts || [];
+  const most = Math.max(1, ...counts);
+  const choice = reveal.result ? reveal.result.choice : null;
+  chart.replaceChildren(
+    ...counts.map((count, position) => {
+      const row = document.createElement("div");
+      row.className =
+        "chart-row" + (position === reveal.correct ? " correct" : "") + (position === choice ? " chosen" : "");
+      const fill = document.createElement("div");
+      fill.className = "chart-fill answer-" + position;
+      fill.style.width = (count / most) * 100 + "%";
+      const text = document.createElement("span");
+      text.className = "chart-text";
+      text.textContent = (state.answers[position] || "") + (position === reveal.correct ? " ✓" : "");
+      const number = document.createElement("span");
+      number.className = "chart-count";
+      number.textContent = count;
+      row.append(fill, shape(position), text, number);
+      return row;
+    }),
+  );
+  chart.hidden = counts.length === 0;
 }
 
 /** How far through its quiz the party is, e.g. "After 6 of 20 Questions", as the protocol's Progress::words says it. */

@@ -51,14 +51,17 @@ The Quizzes page also offers Write a Quiz with Claude: it reads Wikipedia's arti
 the questions, either with Claude Code, on your own Claude subscription, if it is installed (`claude` on the PATH, or the
 copy that comes with its VS Code extension, or given with `--claude <path>`), or with Claude's API, with your own API key,
 made in the Claude Console and kept in the Keychain, and the model you choose, billed to your key. It credits the articles and images under CC
-BY-SA, using only freely licensed images, and opens the draft in the editor to review. It saves either into the app's
-quizzes, to play it here, or into a local checkout of a library's git repository, committing and pushing it if you
-ask, to share it. The same is done from the command line with
+BY-SA, using only freely licensed images, saves the draft in the app's quizzes, and shows its page to review. The same
+is done from the command line with
 `cargo run -p bruce-quiz-generator -- --topic "The Moon" --quizzes <folder>`, asking Claude as the Quizzes page last
-chose, or with `--claude <path>`, or `--model <id>` and the key in `ANTHROPIC_API_KEY` or the Keychain. A library is a folder of quizzes with an index,
-`library.json`, on the web or on disk: the controller's Quizzes page lists Bruce's,
-[bruce-quiz-library](https://github.com/bruceskingle/bruce-quiz-library), or any other you give it, and downloads
-quizzes from it.
+chose, or with `--claude <path>`, or `--model <id>` and the key in `ANTHROPIC_API_KEY` or the Keychain.
+
+A library is a folder of quizzes with an index, `library.json`, on the web or on disk: the controller's Quizzes page
+lists Bruce's, [bruce-quiz-library](https://github.com/bruceskingle/bruce-quiz-library), or any other you give it, and
+downloads quizzes from it. To share a quiz, Add to Library… on its page copies it into a library's folder and updates
+the index, making it if there is none; for a library on the web, e.g. a GitHub repository, choose your checkout of it,
+and, except in the Mac App Store's build, the app commits and pushes it with your own git if you ask. The library's
+address for others is then its raw files', e.g. `https://raw.githubusercontent.com/<owner>/<repo>/main`.
 
 Each quiz is a folder with a Markdown file, `quiz.md`, and its images, which can be edited by hand too: see
 [docs/QuizFormat.md](docs/QuizFormat.md), and [quizzes/around-the-world](quizzes/around-the-world/quiz.md) for an

@@ -954,8 +954,7 @@ table.standings td.quiz-column {
     flex: 1 1 auto;
 }
 
-/* Writing a quiz with Claude, on the Quizzes page: the subject, the articles and the instructions, the options in a row, the steps, and the draft's answers
-   with the correct one marked. */
+/* Writing a quiz with Claude, on the Quizzes page: the subject, the articles and the instructions, the options in a row, and the steps. */
 .generator {
     max-width: 900px;
 }
@@ -1002,36 +1001,15 @@ table.standings td.quiz-column {
     color: var(--muted);
 }
 
-.draft-answers li.correct {
-    color: var(--ok);
-    font-weight: 700;
-}
-
-.draft-answers li.correct::after {
-    content: " ✓";
-}
-
-.destination {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 0.5rem 1rem 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
-}
-
-.destination label {
+.add-to-library .add-to-library-push {
     display: flex;
     align-items: center;
     gap: 0.4rem;
+    margin-bottom: 0.75rem;
 }
 
-/* Each choice's folder, under it, indented to line up with its words. */
-.destination-path {
-    width: calc(100% - 1.6rem);
-    margin-left: 1.6rem;
-}
-
-.destination-path:disabled {
-    opacity: 0.6;
+.add-to-library-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
 }

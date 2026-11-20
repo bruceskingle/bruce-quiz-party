@@ -121,9 +121,9 @@ pub struct AutoAdvance {
     pub reveal_secs: u32,
     /// How long the standings, or a quiz's leaderboard, are shown, in seconds.
     pub standings_secs: u32,
-    /// How long to count down after the host presses Next on the reveal, the standings or a quiz's leaderboard, in
-    /// seconds, so that the players see what is coming; 0 moves on at once. This applies whether or not the party
-    /// moves on by itself.
+    /// How long to count down after the host presses Next on the standings, a quiz's last reveal or a quiz's
+    /// leaderboard, in seconds, so that the players see what is coming; 0 moves on at once. Show Standings, from any
+    /// other reveal, is at once. This applies whether or not the party moves on by itself.
     pub countdown_secs: u32,
 }
 

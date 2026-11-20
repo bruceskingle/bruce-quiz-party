@@ -2,7 +2,8 @@
 //! by the `bruce-quiz-generator` command. It asks Claude which articles to read, unless they are given, reads them from
 //! Wikipedia itself, checking the images' licences, asks Claude for the questions as JSON, through Claude Code run
 //! headless with no tools or through Claude's API with the user's own key, see claude.rs, and saves the draft in a
-//! quizzes folder, or in a library checkout, optionally committed and pushed with the user's own git.
+//! quizzes folder, or, from the command line, in a library checkout, optionally committed and pushed with the user's
+//! own git; the controller adds a quiz to a library from its page instead.
 
 pub mod api_key;
 pub mod claude;

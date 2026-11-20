@@ -1,9 +1,9 @@
 //! A library of quizzes to share: a folder of quiz folders with an index, `library.json`, listing each quiz and its
 //! files, so that it can be served from anywhere, e.g. a GitHub repository's raw files or a shared folder, and the
-//! controller can list it and download quizzes from it. The generator writes the index when it saves a quiz into a
-//! library.
+//! controller can list it and download quizzes from it. The index is rewritten whenever a quiz is added to a library,
+//! from the Quizzes page's Add to Library or by the generator.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
@@ -73,6 +73,48 @@ pub fn write_index(library: &Path) -> std::io::Result<()> {
     let index = index_library(library)?;
     let json = serde_json::to_string_pretty(&index).map_err(std::io::Error::other)? + "\n";
     std::fs::write(library.join(LIBRARY_INDEX), json)
+}
+
+/// Copies a quiz into a library, in a folder of the same name, replacing any quiz there, and rewrites the library's
+/// index, making it if the library had none, returning the quiz's folder in the library. Only the files the index
+/// lists are copied, the quiz file and the images it uses, so that nothing else in the quiz's folder is shared by
+/// accident, and the copy is made beside the old one first, so that a copy which fails never replaces a whole one.
+pub fn add_quiz(library: &Path, folder: &Path, quiz: &Quiz) -> std::io::Result<PathBuf> {
+    let name = folder
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .filter(|name| is_safe_name(name))
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("{} is not a name a library's quiz may have", folder.display()),
+            )
+        })?;
+    let target = library.join(&name);
+    let same = |a: &Path, b: &Path| matches!((a.canonicalize(), b.canonicalize()), (Ok(a), Ok(b)) if a == b);
+    if !same(&target, folder) {
+        let staging = library.join(format!(".adding-{name}"));
+        let _ = std::fs::remove_dir_all(&staging);
+        let copied = (|| {
+            for file in entry(folder, &name, quiz).files {
+                let to = staging.join(&file);
+                if let Some(parent) = to.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                std::fs::copy(folder.join(&file), to)?;
+            }
+            if target.exists() {
+                std::fs::remove_dir_all(&target)?;
+            }
+            std::fs::rename(&staging, &target)
+        })();
+        if copied.is_err() {
+            let _ = std::fs::remove_dir_all(&staging);
+        }
+        copied?;
+    }
+    write_index(library)?;
+    Ok(target)
 }
 
 /// A quiz's entry in the index: its files are its quiz file and the images it uses.
@@ -172,5 +214,38 @@ mod tests {
             .map(|quiz| quiz.folder)
             .collect();
         assert_eq!(folders, ["good"]);
+    }
+
+    #[test]
+    fn adds_a_quiz_to_a_library() {
+        let root = std::env::temp_dir().join(format!("quiz-library-add-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let library = root.join("library");
+        std::fs::create_dir_all(&library).unwrap();
+        let quiz = Quiz::parse(
+            "+++\ntitle = \"Flags\"\n+++\n## Whose?\n![A flag](images/flag.png)\n- [x] Japan\n- [ ] Laos\n",
+        )
+        .unwrap();
+        let folder = root.join("quizzes/flags");
+        quiz.save(&folder).unwrap();
+        std::fs::create_dir_all(folder.join("images")).unwrap();
+        std::fs::write(folder.join("images/flag.png"), "png").unwrap();
+        std::fs::write(folder.join("notes.txt"), "not shared").unwrap();
+        // An older copy, with a file the new one does not have, which goes.
+        std::fs::create_dir_all(library.join("flags")).unwrap();
+        std::fs::write(library.join("flags/old.png"), "old").unwrap();
+
+        let added = add_quiz(&library, &folder, &quiz).unwrap();
+        assert_eq!(added, library.join("flags"));
+        assert!(added.join("quiz.md").is_file() && added.join("images/flag.png").is_file());
+        assert!(!added.join("notes.txt").exists() && !added.join("old.png").exists());
+        let index = LibraryIndex::parse(&std::fs::read_to_string(library.join(LIBRARY_INDEX)).unwrap()).unwrap();
+        assert_eq!(index.quizzes.len(), 1);
+        assert_eq!(index.quizzes[0].files, ["quiz.md", "images/flag.png"]);
+
+        // Adding a library's own quiz to it only rewrites the index.
+        add_quiz(&library, &added, &quiz).unwrap();
+        assert!(added.join("quiz.md").is_file());
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

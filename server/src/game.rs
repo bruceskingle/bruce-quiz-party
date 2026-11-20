@@ -253,14 +253,15 @@ impl Party {
         }
     }
 
-    /// Moves on when the host presses Next: from the reveal, the standings or a quiz's leaderboard, after a short
-    /// countdown, so that the players see what is coming, or at once if Next is pressed again during it; anywhere
-    /// else, at once.
+    /// Moves on when the host presses Next: to the next question or a leaderboard, after a short countdown, so that
+    /// the players see what is coming and are ready, or at once if Next is pressed again during it; anywhere else,
+    /// e.g. from an answer to the standings, which the players need not be ready for, at once.
     pub fn request_next(&mut self, now: Instant) {
         self.resume(now);
         let countdown = Duration::from_secs(self.auto_advance.countdown_secs.into());
         let counting = self.pending_next().is_some();
-        if self.countdown_title().is_some() && !countdown.is_zero() && !counting {
+        let to_standings = self.phase == Phase::Reveal && !self.is_last_question();
+        if self.countdown_title().is_some() && !to_standings && !countdown.is_zero() && !counting {
             self.next_at = Some((self.phase, self.rounds_asked, now + countdown));
         } else {
             self.next(now);
@@ -905,7 +906,7 @@ mod tests {
     }
 
     #[test]
-    fn next_counts_down_from_the_reveal_and_standings() {
+    fn next_counts_down_except_to_the_standings() {
         let mut party = party();
         let start = Instant::now();
         party.start_quiz(0, start).unwrap();
@@ -913,25 +914,29 @@ mod tests {
         party.request_next(start);
         assert_eq!(party.phase, Phase::Reveal);
         assert_eq!(party.countdown_title(), Some("Standings"));
-        // From the reveal, 3 seconds' countdown, which a pause stops.
+        // From the reveal to the standings is at once too.
         party.request_next(at(start, 1.0));
-        assert_eq!(party.phase, Phase::Reveal);
-        assert_eq!(party.advance_at(), Some(at(start, 4.0)));
-        party.pause(at(start, 2.0));
-        party.resume(at(start, 12.0));
-        assert!(!party.tick(at(start, 13.9)));
-        assert!(party.tick(at(start, 14.0)));
         assert_eq!(party.phase, Phase::Standings);
-        assert_eq!(party.advance_at(), None, "the countdown lapses once the party moves on");
-        // Pressing Next again during the countdown moves on at once.
-        party.request_next(at(start, 15.0));
-        party.request_next(at(start, 15.5));
+        // From the standings, 3 seconds' countdown to the next question, which a pause stops.
+        party.request_next(at(start, 2.0));
+        assert_eq!(party.phase, Phase::Standings);
+        assert_eq!(party.advance_at(), Some(at(start, 5.0)));
+        party.pause(at(start, 3.0));
+        party.resume(at(start, 13.0));
+        assert!(!party.tick(at(start, 14.9)));
+        assert!(party.tick(at(start, 15.0)));
         assert_eq!(party.phase, Phase::Question);
+        assert_eq!(party.advance_at(), None, "the countdown lapses once the party moves on");
+        // From the last question's reveal, a countdown to the leaderboard, which pressing Next again ends at once.
+        party.close_question();
+        party.request_next(at(start, 16.0));
+        assert_eq!(party.phase, Phase::Reveal);
+        party.request_next(at(start, 16.5));
+        assert_eq!(party.phase, Phase::QuizLeaderboard);
         // With no countdown, Next is at once.
         party.auto_advance.countdown_secs = 0;
-        party.close_question();
         party.request_next(at(start, 20.0));
-        assert_eq!(party.phase, Phase::QuizLeaderboard);
+        assert_eq!(party.phase, Phase::PartyLeaderboard);
     }
 
     #[test]
@@ -940,6 +945,10 @@ mod tests {
         party.auto_advance.enabled = true;
         let start = Instant::now();
         party.start_quiz(0, start).unwrap();
+        // The last question's reveal, from which Next counts down to the leaderboard.
+        party.close_question();
+        party.next(start);
+        party.next(start);
         party.close_question();
         party.note_shown(start);
         // 5 seconds' reveal: Next at 4 seconds would count down to 7, so it still moves on at 5.

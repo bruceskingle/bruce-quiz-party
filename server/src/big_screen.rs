@@ -370,7 +370,7 @@ fn AutoAdvanceSettings(server: Server, auto: AutoAdvance) -> Element {
                 " seconds"
             }
             label {
-                "When Next is pressed on the answer or the standings, count down for "
+                "When Next is pressed for the next question or a leaderboard, count down for "
                 input {
                     r#type: "number",
                     min: "0",
