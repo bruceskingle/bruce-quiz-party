@@ -41,3 +41,5 @@ features = ["store"]
 entitlements = "server/store.entitlements"
 category = "public.app-category.trivia-games"
 exempt-encryption = true
+# Its name in Finder and the menu bar, which dx would make BruceQuizParty, and its package's, BrucesQuizParty.pkg.
+name = "Bruce's Quiz Party"

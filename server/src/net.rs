@@ -178,7 +178,9 @@ impl Hub {
         let party = &self.party;
         let mut messages = match party.phase {
             Phase::Setup => Vec::new(),
-            Phase::Ended => vec![ServerMessage::PartyEnded],
+            Phase::Ended => vec![ServerMessage::PartyEnded {
+                leaderboard: party.final_leaderboard(),
+            }],
             Phase::Lobby => vec![ServerMessage::Lobby { players: party.lobby() }],
             Phase::Question => {
                 let mut messages: Vec<ServerMessage> = party
@@ -435,11 +437,13 @@ impl Shared {
         });
     }
 
-    /// Starts a new party after one has ended, in setup with a new game code: the last party's players are closed.
+    /// Starts a new party after one has ended, in setup with a new game code: the last party's players are closed, still
+    /// showing its final leaderboard.
     pub fn new_party(&self) {
         let mut hub = self.hub();
+        let leaderboard = hub.party.final_leaderboard();
         hub.party.new_party();
-        hub.close_players(Some(ServerMessage::PartyEnded));
+        hub.close_players(Some(ServerMessage::PartyEnded { leaderboard }));
         drop(hub);
         self.changed();
     }

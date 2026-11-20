@@ -32,7 +32,9 @@ struct PlayView: View {
                     ResultScreen(reveal: reveal, answers: session.question?.answers ?? [])
                 case .ranking(let ranking):
                     RankingScreen(ranking: ranking, player: session.player)
-                case .refused(let text), .ended(let text):
+                case .ended(_, final: let final?):
+                    RankingScreen(ranking: final, player: session.player)
+                case .refused(let text), .ended(let text, _):
                     MessageScreen(text: text, busy: false)
                 }
             }

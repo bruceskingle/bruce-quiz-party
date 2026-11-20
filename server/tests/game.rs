@@ -201,6 +201,17 @@ async fn plays_a_quiz() {
     .await;
     assert_eq!(shared.hub().party.phase, Phase::Lobby);
     assert_eq!(shared.hub().party.played, vec![0]);
+
+    // Ending the party thanks the players with its final scores, as the big screen shows them.
+    shared.end_party();
+    let board = until(&mut jo, |message| match message {
+        ServerMessage::PartyEnded { leaderboard } => Some(leaderboard),
+        _ => None,
+    })
+    .await
+    .expect("the final scores");
+    assert_eq!(board.sorted_by, LeaderboardKind::Party);
+    assert_eq!(board.rows[0].name, "Sam");
 }
 
 #[tokio::test]

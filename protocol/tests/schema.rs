@@ -228,7 +228,7 @@ fn example_files_are_up_to_date() {
         ServerMessage::Paused,
         ServerMessage::Resumed,
         ServerMessage::Removed,
-        ServerMessage::PartyEnded,
+        ServerMessage::PartyEnded { leaderboard: None },
         ServerMessage::Paired {
             token: "fedcba9876543210".into(),
         },
@@ -284,10 +284,26 @@ fn example_files_are_up_to_date() {
                 next: waiting.then(|| "Show Standings".into()),
             })
         }))
-        .chain([ServerMessage::Countdown {
-            next: "Next question".into(),
-            in_ms: 3000,
-        }])
+        .chain([
+            ServerMessage::Countdown {
+                next: "Next question".into(),
+                in_ms: 3000,
+            },
+            // The end of a party in which a quiz was played, with its final leaderboard.
+            ServerMessage::PartyEnded {
+                leaderboard: Some(Leaderboard {
+                    sorted_by: LeaderboardKind::Party,
+                    quizzes: vec!["Science Basics".into()],
+                    rows: vec![LeaderboardRow {
+                        player: 1,
+                        name: "Sam".into(),
+                        quizzes: vec![Some(QuizResult { score: 2400, rank: 1 })],
+                        total: 2400,
+                        rank: 1,
+                    }],
+                }),
+            },
+        ])
         .collect();
     check("examples-client.json", client);
     check("examples-server.json", server);

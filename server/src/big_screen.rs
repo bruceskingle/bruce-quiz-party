@@ -393,7 +393,7 @@ fn EndedScreen(server: Server) -> Element {
     let board = {
         let hub = server.shared.hub();
         let party = &hub.party;
-        (!party.played.is_empty()).then(|| party.leaderboard(LeaderboardKind::Party))
+        party.final_leaderboard()
     };
     let shared = server.shared.clone();
     rsx! {

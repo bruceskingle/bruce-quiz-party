@@ -188,10 +188,10 @@ jobs:
         working-directory: server
         run: dx build --release --platform desktop --features store
 
-      # The App Store's version, build number, category, oldest macOS and, if exempt, its encryption in its Info.plist,
-      # and its icon, which dx build names there but, unlike dx bundle, does not copy in: the .icns among the icons in
-      # Dioxus.toml. Then it is signed here, without a certificate, only to carry its entitlements, e.g. the App
-      # Sandbox's, which the export keeps when it signs it for the store.
+      # The app's name, if it is given one, and the App Store's version, build number, category, oldest macOS and, if
+      # exempt, its encryption in its Info.plist, and its icon, which dx build names there but, unlike dx bundle, does
+      # not copy in: the .icns among the icons in Dioxus.toml. Then it is signed here, without a certificate, only to
+      # carry its entitlements, e.g. the App Sandbox's, which the export keeps when it signs it for the store.
       - name: Prepare the app
         run: |
           app=$(find target/dx -path '*/release/macos/*.app' -maxdepth 5 -type d | head -1)
@@ -199,11 +199,16 @@ jobs:
             echo "The app was not built"
             exit 1
           fi
+          renamed="$(dirname "$app")/Bruce's Quiz Party.app"
+          mv "$app" "$renamed"
+          app="$renamed"
           info="$app/Contents/Info.plist"
           plutil -replace CFBundleShortVersionString -string "$VERSION" "$info"
           plutil -replace CFBundleVersion -string "$BUILD" "$info"
           plutil -replace LSApplicationCategoryType -string "public.app-category.trivia-games" "$info"
           plutil -replace ITSAppUsesNonExemptEncryption -bool NO "$info"
+          plutil -replace CFBundleName -string "Bruce's Quiz Party" "$info"
+          plutil -replace CFBundleDisplayName -string "Bruce's Quiz Party" "$info"
           plutil -replace LSMinimumSystemVersion -string "$MACOSX_DEPLOYMENT_TARGET" "$info"
           icon=$(grep -o '"[^"]*\.icns"' "server/Dioxus.toml" | head -1 | tr -d '"')
           if [ -z "$icon" ]; then
@@ -270,6 +275,9 @@ jobs:
             -authenticationKeyPath "$KEY_PATH" \
             -authenticationKeyID "$API_KEY" \
             -authenticationKeyIssuerID "$API_ISSUER"
+          for package in "$RUNNER_TEMP"/dist/*.pkg; do
+            [ -e "$package" ] && mv "$package" "$RUNNER_TEMP/dist/BrucesQuizParty.pkg"
+          done
           ls -l "$RUNNER_TEMP/dist"
 
       - name: Keep the Mac app

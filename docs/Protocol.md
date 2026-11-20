@@ -71,7 +71,7 @@ From the controller:
 | `leaderboard` | After a quiz's last question, its leaderboard, sorted by its places, then the party's, sorted by the totals. |
 | `countdown` | The party moves on soon, by itself or as the host pressed Next: what comes `next`, e.g. "Next question", and `in_ms`, for a countdown under the reveal or the standings. Whatever the party shows next ends it. |
 | `paused`, `resumed` | The clock stopped or started again. While it is stopped, answers are refused; when it starts, the question is sent again with the time it had left. |
-| `removed`, `party_ended` | The player was removed, or the party is over. |
+| `removed`, `party_ended` | The player was removed, or the party is over: `party_ended` has the party's final `leaderboard`, if any quiz was played, which the phone shows under its thanks. |
 | `paired` | The phone is paired as a host: the `token` to keep, securely. |
 | `host_state` | Everything a host phone shows, whenever it changes: the game code and whether it is needed, the quizzes, the players, the phase with the correct answer and who has answered, whether it is paused, auto-advance, and what Next does. |
 

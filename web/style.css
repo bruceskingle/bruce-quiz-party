@@ -11,6 +11,12 @@
     font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
+/* Anything hidden stays hidden, whatever display its own rule gives it, e.g. a question's image when it has none,
+   which would otherwise show as an empty image's outline. */
+[hidden] {
+    display: none !important;
+}
+
 *, *::before, *::after {
     box-sizing: border-box;
 }

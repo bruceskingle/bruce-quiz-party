@@ -250,7 +250,11 @@ function receive(message) {
       break;
     case "party_ended":
       state.stayConnected = false;
-      showMessage("The party is over. Thanks for playing!");
+      if (message.leaderboard) {
+        showFinalScores(message.leaderboard);
+      } else {
+        showMessage("The party is over. Thanks for playing!");
+      }
       break;
     default:
       // Messages for later milestones, or from a newer controller, are ignored.
@@ -451,6 +455,15 @@ function showLeaderboard(board) {
       board.rows.map((row) => ({ player: row.player, name: row.name, score: row.total, rank: row.rank })),
     );
   }
+}
+
+/** Shows the party's final leaderboard under the thanks, as the big screen does, once the party is over. */
+function showFinalScores(board) {
+  showRanking(
+    "Thanks for Playing!",
+    board.rows.map((row) => ({ player: row.player, name: row.name, score: row.total, rank: row.rank })),
+  );
+  $("standings-progress").textContent = "The party's final scores";
 }
 
 /** Shows a ranking under a title: the top five, and this player's place and score. */

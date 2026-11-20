@@ -221,8 +221,12 @@ pub enum ServerMessage {
     Resumed,
     /// The host removed this player from the party. The connection will be closed.
     Removed,
-    /// The party is over.
-    PartyEnded,
+    /// The party is over: its final leaderboard, if any quiz was played, for the phones to show under their thanks,
+    /// as the big screen does.
+    PartyEnded {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        leaderboard: Option<Leaderboard>,
+    },
     /// The phone is paired as a host: the token to keep, securely, and send with [`ClientMessage::HostConnect`].
     Paired {
         /// The host's token.

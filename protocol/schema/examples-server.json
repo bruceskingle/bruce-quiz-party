@@ -563,5 +563,30 @@
     "type": "countdown",
     "next": "Next question",
     "in_ms": 3000
+  },
+  {
+    "type": "party_ended",
+    "leaderboard": {
+      "sorted_by": {
+        "kind": "party"
+      },
+      "quizzes": [
+        "Science Basics"
+      ],
+      "rows": [
+        {
+          "player": 1,
+          "name": "Sam",
+          "quizzes": [
+            {
+              "score": 2400,
+              "rank": 1
+            }
+          ],
+          "total": 2400,
+          "rank": 1
+        }
+      ]
+    }
   }
 ]

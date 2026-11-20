@@ -174,7 +174,8 @@ public enum ServerMessage: Decodable, Equatable, Sendable {
     case resumed
     /// The host removed this player.
     case removed
-    case partyEnded
+    /// The party is over: its final leaderboard, if any quiz was played.
+    case partyEnded(Leaderboard?)
     /// The phone is paired as a host: the token to keep, securely.
     case paired(token: String)
     /// Everything a host phone shows.
@@ -184,7 +185,7 @@ public enum ServerMessage: Decodable, Equatable, Sendable {
 
     private enum Keys: String, CodingKey {
         case type, player, token, name, reason, message, nonce, players, question, choice, answered, standings, next
-        case inMs, progress
+        case inMs, progress, leaderboard
     }
 
     public init(from decoder: Decoder) throws {
@@ -225,7 +226,7 @@ public enum ServerMessage: Decodable, Equatable, Sendable {
         case "paused": self = .paused
         case "resumed": self = .resumed
         case "removed": self = .removed
-        case "party_ended": self = .partyEnded
+        case "party_ended": self = .partyEnded(try container.decodeIfPresent(Leaderboard.self, forKey: .leaderboard))
         case "paired": self = .paired(token: try container.decode(String.self, forKey: .token))
         case "host_state": self = .hostState(try HostState(from: decoder))
         default: self = .unknown(type: type)

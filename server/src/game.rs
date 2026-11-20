@@ -475,6 +475,12 @@ impl Party {
         }
     }
 
+    /// The party's final leaderboard, once it has ended, or None if no quiz was played: shown on the big screen and
+    /// sent to the phones with the thanks.
+    pub fn final_leaderboard(&self) -> Option<Leaderboard> {
+        (!self.played.is_empty()).then(|| self.leaderboard(LeaderboardKind::Party))
+    }
+
     /// A leaderboard: the quizzes played so far as its columns, a row for every player, sorted by one quiz's places
     /// or by the party's. A quiz's leaderboard lists only the players who played it; the party's lists everyone.
     pub fn leaderboard(&self, sorted_by: LeaderboardKind) -> Leaderboard {

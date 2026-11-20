@@ -294,9 +294,19 @@
       ]
     },
     {
-      "description": "The party is over.",
+      "description": "The party is over: its final leaderboard, if any quiz was played, for the phones to show under their thanks,\nas the big screen does.",
       "type": "object",
       "properties": {
+        "leaderboard": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Leaderboard"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "type": {
           "type": "string",
           "const": "party_ended"
