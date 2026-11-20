@@ -1,10 +1,11 @@
 # Made by bruce-method-release's setup from its release-app-store.yml template. Change the template, or this
 # repository's hooks, not this file: setup replaces it, and the release checks fail while it differs.
 #
-# Builds the App Store's apps for a tag, signs them for App Store Connect, and, with upload, uploads them there, where
-# they appear in TestFlight once Apple has processed them. The tag is testX.Y.Z, for bruce-method-release's try, which
-# builds and checks without uploading, or releaseX.Y.Z, for its release. Submitting a build for App Review is done in
-# App Store Connect.
+# Builds the App Store's apps for a tag, signs them for App Store Connect, and, for a release, uploads them there, where
+# they appear in TestFlight once Apple has processed them. Pushing the tag runs it, so that it runs before it is on
+# main, where the Actions tab could: testX.Y.Z, pushed by bruce-method-release's try, builds and checks the apps
+# without uploading them, and releaseX.Y.Z, pushed by its release, uploads them. It can also be run by hand, from the
+# Actions tab, e.g. to upload again. Submitting a build for App Review is done in App Store Connect.
 #
 # Signing is automatic: with the App Store Connect API key, xcodebuild makes the provisioning profiles and uses Apple's
 # cloud-managed distribution certificates, so no certificate or profile is kept in the repository's secrets. The key
@@ -16,10 +17,8 @@
 name: Release
 
 on:
-  # Temporary, until this workflow is on main, where the Actions tab and gh can run it: pushing a test tag runs it,
-  # without uploading.
   push:
-    tags: ["test*"]
+    tags: ["test*", "release*"]
   workflow_dispatch:
     inputs:
       tag:
@@ -32,6 +31,8 @@ on:
 
 env:
   TAG: ${{ inputs.tag || github.ref_name }}
+  # Whether to upload the apps: when asked, by hand, or for a release tag pushed; a try only keeps them, as artifacts.
+  UPLOAD: ${{ inputs.upload || (github.event_name == 'push' && startsWith(github.ref_name, 'release')) }}
   # The App Store's build number, which must go up with every upload of a version: the workflow's run number does.
   BUILD: ${{ github.run_number }}
   CARGO_TERM_COLOR: always
@@ -99,7 +100,7 @@ jobs:
           TEAM: ${{ secrets.APPLE_TEAM_ID }}
           API_KEY: ${{ secrets.APPLE_API_KEY }}
           API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          DESTINATION: ${{ inputs.upload && 'upload' || 'export' }}
+          DESTINATION: ${{ env.UPLOAD == 'true' && 'upload' || 'export' }}
         run: |
           options="$RUNNER_TEMP/ExportOptions.plist"
           plutil -create xml1 "$options"
@@ -119,7 +120,7 @@ jobs:
           ls -l "$RUNNER_TEMP/dist"
 
       - name: Keep the iOS app
-        if: ${{ !inputs.upload }}
+        if: ${{ env.UPLOAD != 'true' }}
         uses: actions/upload-artifact@v7
         with:
           name: ios
@@ -167,8 +168,17 @@ jobs:
           rustup default stable
           rustc --version
 
-      # Built from source with its own Cargo.lock, rather than downloading a prebuilt binary.
+      # The Dioxus CLI is built from source with its own Cargo.lock, rather than downloading a prebuilt binary, which
+      # takes about ten minutes, so what was built is kept in the cache for the next run of the same version.
+      - name: Find the Dioxus CLI in the cache
+        id: dx
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/dx*
+          key: dx-${{ runner.os }}-${{ runner.arch }}-${{ env.DX_VERSION }}
+
       - name: Install the Dioxus CLI
+        if: steps.dx.outputs.cache-hit != 'true'
         run: cargo install dioxus-cli --version "$DX_VERSION" --locked
 
       - name: Run the tests
@@ -243,7 +253,7 @@ jobs:
           TEAM: ${{ secrets.APPLE_TEAM_ID }}
           API_KEY: ${{ secrets.APPLE_API_KEY }}
           API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          DESTINATION: ${{ inputs.upload && 'upload' || 'export' }}
+          DESTINATION: ${{ env.UPLOAD == 'true' && 'upload' || 'export' }}
         run: |
           options="$RUNNER_TEMP/ExportOptions.plist"
           plutil -create xml1 "$options"
@@ -263,7 +273,7 @@ jobs:
           ls -l "$RUNNER_TEMP/dist"
 
       - name: Keep the Mac app
-        if: ${{ !inputs.upload }}
+        if: ${{ env.UPLOAD != 'true' }}
         uses: actions/upload-artifact@v7
         with:
           name: macos
