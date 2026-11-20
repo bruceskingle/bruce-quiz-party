@@ -40,3 +40,4 @@ dioxus = "server"
 features = ["store"]
 entitlements = "server/store.entitlements"
 category = "public.app-category.trivia-games"
+exempt-encryption = true
