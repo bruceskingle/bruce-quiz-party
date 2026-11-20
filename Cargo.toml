@@ -32,6 +32,10 @@ platform = "ios"
 project = "ios/QuizParty.xcodeproj"
 scheme = "QuizParty"
 swift-package = "ios/QuizPartyKit"
+# Built with Xcode 27, for the iOS 27 SDK App Store Connect asks for from April 2027, on GitHub's image which has it
+# while macos-latest does not.
+runner = "xcode-27"
+xcode = "27.2"
 
 # The Mac controller, built with the store feature, which leaves out what the App Sandbox does not allow.
 [[workspace.metadata.bruce-method.apps]]
