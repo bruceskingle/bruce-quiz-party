@@ -16,6 +16,10 @@
 name: Release
 
 on:
+  # Temporary, until this workflow is on main, where the Actions tab and gh can run it: pushing a test tag runs it,
+  # without uploading.
+  push:
+    tags: ["test*"]
   workflow_dispatch:
     inputs:
       tag:
@@ -27,7 +31,7 @@ on:
         default: false
 
 env:
-  TAG: ${{ inputs.tag }}
+  TAG: ${{ inputs.tag || github.ref_name }}
   # The App Store's build number, which must go up with every upload of a version: the workflow's run number does.
   BUILD: ${{ github.run_number }}
   CARGO_TERM_COLOR: always
