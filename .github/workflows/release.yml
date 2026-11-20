@@ -132,6 +132,9 @@ jobs:
     env:
       # The dioxus version in Cargo.lock.
       DX_VERSION: "0.7.10"
+      # The oldest macOS the app runs on. It is built for Apple silicon only, which the App Store accepts from
+      # macOS 12; a universal build, for Intel Macs too, would take twice as long.
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
     steps:
       - name: Check out bruce-quiz-party
         uses: actions/checkout@v7
@@ -175,8 +178,10 @@ jobs:
         working-directory: server
         run: dx build --release --platform desktop --features store
 
-      # The App Store's version, build number and category in its Info.plist, then signed here, without a certificate,
-      # only to carry its entitlements, e.g. the App Sandbox's, which the export keeps when it signs it for the store.
+      # The App Store's version, build number, category and oldest macOS in its Info.plist, and its icon, which
+      # dx build names there but, unlike dx bundle, does not copy in: the .icns among the icons in Dioxus.toml. Then
+      # it is signed here, without a certificate, only to carry its entitlements, e.g. the App Sandbox's, which the
+      # export keeps when it signs it for the store.
       - name: Prepare the app
         run: |
           app=$(find target/dx -path '*/release/macos/*.app' -maxdepth 5 -type d | head -1)
@@ -188,6 +193,15 @@ jobs:
           plutil -replace CFBundleShortVersionString -string "$VERSION" "$info"
           plutil -replace CFBundleVersion -string "$BUILD" "$info"
           plutil -replace LSApplicationCategoryType -string "public.app-category.trivia-games" "$info"
+          plutil -replace LSMinimumSystemVersion -string "$MACOSX_DEPLOYMENT_TARGET" "$info"
+          icon=$(grep -o '"[^"]*\.icns"' "server/Dioxus.toml" | head -1 | tr -d '"')
+          if [ -z "$icon" ]; then
+            echo "The App Store needs an icon: add an .icns to the bundle's icons in server/Dioxus.toml"
+            exit 1
+          fi
+          mkdir -p "$app/Contents/Resources"
+          cp "server/$icon" "$app/Contents/Resources/$(basename "$icon")"
+          plutil -replace CFBundleIconFile -string "$(basename "$icon")" "$info"
           codesign --force --deep --sign - --entitlements "server/store.entitlements" "$app"
           echo "APP=$app" >> "$GITHUB_ENV"
 
