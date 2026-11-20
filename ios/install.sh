@@ -41,7 +41,7 @@ fi
 
 xcodebuild -project QuizParty.xcodeproj -scheme QuizParty -configuration Release \
     -destination "id=$device" -derivedDataPath build/DerivedData -allowProvisioningUpdates -quiet build
-xcrun devicectl device install app --device "$device" build/DerivedData/Build/Products/Release-iphoneos/QuizParty.app
+xcrun devicectl device install app --device "$device" build/DerivedData/Build/Products/Release-iphoneos/BrucesQuizParty.app
 # Starting it fails while the phone is locked, which is no reason to fail the install.
 if ! xcrun devicectl device process launch --device "$device" org.skingle.bruce-quiz-party >/dev/null 2>&1; then
     echo "Installed. Unlock the phone and open Quiz Party."

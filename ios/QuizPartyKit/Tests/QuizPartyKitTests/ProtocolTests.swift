@@ -34,8 +34,13 @@ private func object(_ data: Data) throws -> NSObject {
             Issue.record("The example \(type) is not known")
         }
     }
-    #expect(messages.count == 31)
+    #expect(messages.count == 32)
     #expect(messages[30] == .countdown(next: "Next question", inMs: 3000))
+    guard case .partyEnded(let final?) = messages[31] else {
+        Issue.record("No final leaderboard: \(messages[31])")
+        return
+    }
+    #expect(final.rows.map(\.total) == [2400])
     #expect(messages.first == .welcome(player: 1, token: "0123456789abcdef", name: "Sam"))
     guard case .question(let view) = messages[8] else {
         Issue.record("No question: \(messages[8])")
@@ -200,6 +205,13 @@ private func object(_ data: Data) throws -> NSObject {
     guard case .ranking(let ranking) = session.screen else { return }
     #expect(ranking.title == "Around the World: final scores")
     #expect(ranking.rows.map(\.name) == ["Jo"])
+    session.handle(messages[31])  // the end of the party, with its final scores
+    guard case .ended(_, final: let final?) = session.screen else {
+        Issue.record("No final scores: \(session.screen)")
+        return
+    }
+    #expect(final.title == "Thanks for Playing!")
+    #expect(final.rows.map(\.name) == ["Sam"])
     session.handle(messages[1])  // a wrong game code
     #expect(session.screen == .refused("That isn't this party's code."))
     #expect(memory.entry(code: "ABCD") == nil)

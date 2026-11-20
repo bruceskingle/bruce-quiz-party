@@ -78,6 +78,8 @@ pub fn Library() -> Element {
     let mut editing = use_signal(|| None::<(Option<PathBuf>, Quiz)>);
     // Whether the host is looking at an online library to download quizzes from.
     let mut browsing = use_signal(|| false);
+    // The quiz whose Add to Library panel is open, by folder, so that choosing another quiz closes it.
+    let mut adding = use_signal(|| None::<PathBuf>);
     // Whether the host is writing a quiz with Claude, through Claude Code if it is installed, or Claude's API.
     let mut writing = use_signal(|| false);
     let claude = use_hook(|| crate::generator::claude_command(args.claude.as_deref()));
@@ -126,11 +128,10 @@ pub fn Library() -> Element {
                     crate::generator::QuizWriter {
                         code: claude.clone(),
                         quizzes: folder.clone(),
-                        // A quiz written into this app's quizzes is listed, and opened in the editor to review.
-                        saved: move |(saved, quiz): (PathBuf, Quiz)| {
+                        // A quiz written is listed, and its page shown, to review, edit or add to a library.
+                        saved: move |saved: PathBuf| {
                             writing.set(false);
-                            reload(saved.clone());
-                            editing.set(Some((Some(saved), quiz)));
+                            reload(saved);
                         },
                         done: move |_| writing.set(false),
                     }
@@ -211,7 +212,10 @@ pub fn Library() -> Element {
                     div { class: "preview-actions",
                         button {
                             title: "Hide this quiz's answers, e.g. before the screen is shown on a projector",
-                            onclick: move |_| chosen.set(None),
+                            onclick: move |_| {
+                                chosen.set(None);
+                                adding.set(None);
+                            },
                             "Hide"
                         }
                         if let Ok(quiz) = &entry.quiz {
@@ -234,6 +238,24 @@ pub fn Library() -> Element {
                                 }
                             },
                             "Show in Finder"
+                        }
+                        if entry.quiz.is_ok() {
+                            button {
+                                title: "Copy the quiz into a library's folder and update its index, to share it",
+                                onclick: {
+                                    let folder = entry.folder.clone();
+                                    move |_| adding.set(Some(folder.clone()))
+                                },
+                                "Add to Library…"
+                            }
+                        }
+                    }
+                    if let (Ok(quiz), true) = (&entry.quiz, adding() == Some(entry.folder.clone())) {
+                        crate::add_to_library::AddToLibrary {
+                            key: "{entry.folder.display()}",
+                            folder: entry.folder.clone(),
+                            quiz: quiz.clone(),
+                            done: move |_| adding.set(None),
                         }
                     }
                     QuizPreview { entry: entry.clone() }

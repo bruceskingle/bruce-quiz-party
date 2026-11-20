@@ -40,14 +40,15 @@ Each project can be opened on its own in VS Code (and the iOS app in Xcode).
   found for a subject or chosen, with their revisions, and their freely licensed Commons images), asks Claude which articles to read
   (`src/suggest.rs`) and for the questions as JSON (`src/claude.rs`, `src/draft.rs`), through Claude Code headless
   with no tools, or Claude's API with the user's own key, in the Keychain (`src/api_key.rs`), and the model they
-  choose, and saves a draft in a quizzes folder, or in a library checkout, rewriting its
+  choose, and saves a draft in a quizzes folder, or, from the command line, in a library checkout, rewriting its
   index and, if asked, committing and pushing with the user's own git (`src/publish.rs`; where to save is remembered,
-  `src/settings.rs`), crediting the articles used and the images. A quiz saved in the controller's quizzes opens in
-  its editor.
+  `src/settings.rs`), crediting the articles used and the images. The controller always saves into its own quizzes,
+  and shows the quiz's page.
 - `server/src/phone_image.rs`: smaller copies of big photos for the phones, made with macOS's `sips` and cached;
   `server/tests/load.rs` plays a question with 100 phones (`LOAD_PLAYERS=500` for more).
 - Libraries: a folder of quiz folders with `library.json` (`quiz_format::library`), on the web or on disk. The
-  controller's Quizzes page downloads from one (`server/src/download.rs`), Bruce's,
+  controller's Quizzes page adds a quiz to one, copying it and rewriting the index (`server/src/add_to_library.rs`,
+  `quiz_format::library::add_quiz`), and downloads from one (`server/src/download.rs`), Bruce's,
   `bruceskingle/bruce-quiz-library`, by default, trusting only safe paths and quizzes which read.
 
 The shared crates are specific to this app, so they live in this repo's Cargo workspace rather than being published

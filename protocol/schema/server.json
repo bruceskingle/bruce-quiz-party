@@ -294,9 +294,19 @@
       ]
     },
     {
-      "description": "The party is over.",
+      "description": "The party is over: its final leaderboard, if any quiz was played, for the phones to show under their thanks,\nas the big screen does.",
       "type": "object",
       "properties": {
+        "leaderboard": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Leaderboard"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "type": {
           "type": "string",
           "const": "party_ended"
@@ -345,7 +355,7 @@
       "type": "object",
       "properties": {
         "countdown_secs": {
-          "description": "How long to count down after the host presses Next on the reveal, the standings or a quiz's leaderboard, in\nseconds, so that the players see what is coming; 0 moves on at once. This applies whether or not the party\nmoves on by itself.",
+          "description": "How long to count down after the host presses Next on the standings, a quiz's last reveal or a quiz's\nleaderboard, in seconds, so that the players see what is coming; 0 moves on at once. Show Standings, from any\nother reveal, is at once. This applies whether or not the party moves on by itself.",
           "type": "integer",
           "format": "uint32",
           "minimum": 0

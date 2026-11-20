@@ -370,7 +370,7 @@ fn AutoAdvanceSettings(server: Server, auto: AutoAdvance) -> Element {
                 " seconds"
             }
             label {
-                "When Next is pressed on the answer or the standings, count down for "
+                "When Next is pressed for the next question or a leaderboard, count down for "
                 input {
                     r#type: "number",
                     min: "0",
@@ -393,7 +393,7 @@ fn EndedScreen(server: Server) -> Element {
     let board = {
         let hub = server.shared.hub();
         let party = &hub.party;
-        (!party.played.is_empty()).then(|| party.leaderboard(LeaderboardKind::Party))
+        party.final_leaderboard()
     };
     let shared = server.shared.clone();
     rsx! {

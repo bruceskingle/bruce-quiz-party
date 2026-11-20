@@ -1,6 +1,6 @@
 //! Writing a quiz with Claude, on the Quizzes page: a subject, the Wikipedia articles to write from, found for it or
-//! chosen, anything else for Claude in the user's own words, how many questions and how hard, and where to save it,
-//! this app's quizzes, to play and edit it here, or a library checkout, to share it. Claude is asked through Claude
+//! chosen, anything else for Claude in the user's own words, and how many questions and how hard. The quiz is saved in
+//! this app's quizzes, and its page shown, from which it can be edited, or added to a library to share it. Claude is asked through Claude
 //! Code, on the user's own subscription, where it is installed and the app may run it, or through Claude's API, with
 //! the user's own key and the model they choose, see the generator crate's claude.rs.
 
@@ -12,10 +12,9 @@ use generator::{
     claude::{self, Choice, Claude, MODELS},
     draft::{Difficulty, Request},
     generate::{self, MAX_ARTICLES},
-    settings::{self, Destination},
+    settings::Destination,
     wikipedia::category_name,
 };
-use quiz_format::Quiz;
 
 /// The Claude Code command, if it can be found: the one given, else `claude` on the PATH or in its usual places, else
 /// the copy that comes with the VS Code extension. Never in the Mac App Store's build, whose sandbox would not let it
@@ -27,38 +26,16 @@ pub fn claude_command(given: Option<&Path>) -> Option<PathBuf> {
     generator::claude::find(given)
 }
 
-/// The library checkout suggested before one has been chosen.
-fn suggested_checkout() -> PathBuf {
-    dirs::home_dir().unwrap_or_default().join("git/bruce-quiz-library")
-}
-
-/// How the last quiz went.
-#[derive(Clone, PartialEq)]
-enum Outcome {
-    /// Saved in a library checkout, shown here, as the Quizzes page lists only this app's quizzes.
-    InLibrary(PathBuf, Quiz),
-    Failed(String),
-}
-
-/// The page: the topic and options, where to save, what is happening, and how it went. A quiz saved in this app's
-/// quizzes is handed to `saved`, for the Quizzes page to open in the editor.
+/// The page: the topic and options, what is happening, and why the quiz could not be written, if it could not. The
+/// folder of a quiz written is handed to `saved`, for the Quizzes page to show it.
 #[component]
 pub fn QuizWriter(
     /// Claude Code, if it is installed.
     code: Option<PathBuf>,
     quizzes: PathBuf,
-    saved: EventHandler<(PathBuf, Quiz)>,
+    saved: EventHandler<PathBuf>,
     done: EventHandler<()>,
 ) -> Element {
-    // Where the last quiz was saved: a library checkout, or else this app's quizzes.
-    let mut destination = use_signal({
-        let quizzes = quizzes.clone();
-        move || match settings::load() {
-            // The Mac App Store's build saves only into its own quizzes, see DestinationChooser.
-            library @ Destination::Library { .. } if !crate::STORE => library,
-            _ => Destination::Folder { path: quizzes },
-        }
-    });
     let mut topic = use_signal(String::new);
     // The articles to write from, one per line, titles or addresses; if none, those found for the subject.
     let mut articles = use_signal(String::new);
@@ -70,7 +47,8 @@ pub fn QuizWriter(
     let mut difficulty = use_signal(|| Difficulty::Medium);
     let mut steps = use_signal(Vec::<String>::new);
     let mut running = use_signal(|| false);
-    let mut outcome = use_signal(|| None::<Outcome>);
+    // Why the last quiz could not be written.
+    let mut failed = use_signal(|| None::<String>);
     // How to ask Claude, as chosen below, or None until it can be asked, e.g. without an API key.
     let asker = use_signal(|| None::<Claude>);
 
@@ -84,28 +62,27 @@ pub fn QuizWriter(
     };
 
     let write = {
+        let quizzes = quizzes.clone();
         move |_| {
             let request = request();
             if request.topic.is_empty() && request.articles.is_empty() {
                 return;
             }
             let Some(claude) = asker() else { return };
-            let destination = destination();
+            let destination = Destination::Folder { path: quizzes.clone() };
             running.set(true);
             steps.set(Vec::new());
-            outcome.set(None);
+            failed.set(None);
             suggest_error.set(None);
             spawn(async move {
-                let in_library = matches!(destination, Destination::Library { .. });
                 let written = with_steps(steps, move |progress| {
                     generate::generate(&request, &claude, &destination, progress)
                 })
                 .await;
                 running.set(false);
                 match written {
-                    Ok((folder, quiz)) if in_library => outcome.set(Some(Outcome::InLibrary(folder, quiz))),
-                    Ok((folder, quiz)) => saved.call((folder, quiz)),
-                    Err(error) => outcome.set(Some(Outcome::Failed(format!("{error:#}")))),
+                    Ok((folder, _)) => saved.call(folder),
+                    Err(error) => failed.set(Some(format!("{error:#}"))),
                 }
             });
         }
@@ -125,7 +102,7 @@ pub fn QuizWriter(
             let Some(claude) = asker() else { return };
             suggesting.set(true);
             steps.set(Vec::new());
-            outcome.set(None);
+            failed.set(None);
             suggest_error.set(None);
             spawn(async move {
                 let found = with_steps(steps, move |progress| generate::suggest(&request, &claude, progress)).await;
@@ -159,24 +136,9 @@ pub fn QuizWriter(
             }
             p { class: "muted",
                 "Writes a draft quiz from Wikipedia's articles on a topic, crediting them and its images, with Claude. "
-                "Review it in the editor before playing or sharing it."
+                "It is saved in this app's quizzes: review it before playing it, then edit it, or add it to a library to share it."
             }
             ClaudeChooser { code: code.clone(), disabled: busy, asker }
-            // The Mac App Store's build saves only into this app's quizzes, as publishing to a library runs git, which
-            // its sandbox would not let it.
-            if !crate::STORE {
-                DestinationChooser {
-                    destination: destination(),
-                    quizzes: quizzes.clone(),
-                    disabled: running(),
-                    onchange: move |chosen: Destination| {
-                        if let Err(error) = settings::save(&chosen) {
-                            eprintln!("Cannot remember where to save quizzes: {error:#}");
-                        }
-                        destination.set(chosen);
-                    },
-                }
-            }
             label { class: "generator-label", "Subject" }
             div { class: "generator-form",
                 input {
@@ -252,14 +214,8 @@ pub fn QuizWriter(
                     }
                 }
             }
-            match outcome() {
-                Some(Outcome::Failed(error)) => rsx! {
-                    p { class: "invalid", "The quiz could not be written: {error}" }
-                },
-                Some(Outcome::InLibrary(folder, quiz)) => rsx! {
-                    DraftPreview { folder, quiz }
-                },
-                None => rsx! {},
+            if let Some(error) = failed() {
+                p { class: "invalid", "The quiz could not be written: {error}" }
             }
         }
     }
@@ -428,119 +384,6 @@ fn capitalised(word: &str) -> String {
         .next()
         .map(|first| first.to_uppercase().chain(letters).collect())
         .unwrap_or_default()
-}
-
-/// Where to save: this app's quizzes, to play and edit the quiz here, or a library checkout, to share it. Each choice
-/// shows its folder; the checkout's is kept while this app's is chosen, so that switching back and forth keeps it.
-#[component]
-fn DestinationChooser(
-    destination: Destination,
-    quizzes: PathBuf,
-    disabled: bool,
-    onchange: EventHandler<Destination>,
-) -> Element {
-    let mut checkout = use_signal(|| match &destination {
-        Destination::Library { checkout, .. } => checkout.clone(),
-        Destination::Folder { .. } => suggested_checkout(),
-    });
-    let is_library = matches!(destination, Destination::Library { .. });
-    let publish = matches!(destination, Destination::Library { publish: true, .. });
-    let to_library = move |publish: bool| Destination::Library {
-        checkout: checkout(),
-        publish,
-    };
-    rsx! {
-        fieldset { class: "destination", disabled,
-            legend { "Save the quiz in" }
-            label {
-                input {
-                    r#type: "radio",
-                    name: "destination",
-                    checked: !is_library,
-                    onchange: {
-                        let quizzes = quizzes.clone();
-                        move |_| onchange.call(Destination::Folder { path: quizzes.clone() })
-                    },
-                }
-                "This app's quizzes, to play it here"
-            }
-            p { class: "destination-path muted small", "{quizzes.display()}" }
-            label {
-                input {
-                    r#type: "radio",
-                    name: "destination",
-                    checked: is_library,
-                    onchange: move |_| onchange.call(to_library(false)),
-                }
-                "A library, to share it: a local checkout of the library's git repository"
-            }
-            input {
-                class: "destination-path",
-                value: "{checkout.read().display()}",
-                disabled: !is_library,
-                oninput: move |event: FormEvent| {
-                    checkout.set(PathBuf::from(event.value()));
-                    onchange.call(to_library(publish));
-                },
-            }
-            if is_library {
-                label {
-                    input {
-                        r#type: "checkbox",
-                        checked: publish,
-                        onchange: move |event: FormEvent| onchange.call(to_library(event.checked())),
-                    }
-                    "Commit and push it with git, so that the library's readers can download it"
-                }
-            }
-        }
-    }
-}
-
-/// A quiz saved in a library checkout: where it is, and its questions with their correct answers, to check at a
-/// glance, as it is not in this app's quizzes to open in the editor.
-#[component]
-fn DraftPreview(folder: PathBuf, quiz: Quiz) -> Element {
-    rsx! {
-        div { class: "draft",
-            h2 { "{quiz.title}" }
-            if let Some(description) = &quiz.description {
-                p { class: "muted", "{description}" }
-            }
-            p {
-                "Saved in {folder.display()}. "
-                button {
-                    onclick: {
-                        let folder = folder.clone();
-                        move |_| {
-                            let _ = std::process::Command::new("open").arg(&folder).spawn();
-                        }
-                    },
-                    "Show in Finder"
-                }
-            }
-            for (index , question) in quiz.questions.iter().enumerate() {
-                div { key: "{index}", class: "question-card",
-                    h3 { "{index + 1}. {question.text}" }
-                    if let Some(image) = &question.image {
-                        p { class: "muted small", "Image: {image.file}, “{image.alt}”" }
-                    }
-                    ul { class: "draft-answers",
-                        for (position , answer) in question.answers.iter().enumerate() {
-                            li {
-                                key: "{position}",
-                                class: if position == question.correct { "correct" } else { "" },
-                                "{answer}"
-                            }
-                        }
-                    }
-                    if let Some(source) = &question.source {
-                        p { class: "muted small", "From {source}" }
-                    }
-                }
-            }
-        }
-    }
 }
 
 #[cfg(test)]

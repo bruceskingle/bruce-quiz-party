@@ -32,7 +32,9 @@ struct PlayView: View {
                     ResultScreen(reveal: reveal, answers: session.question?.answers ?? [])
                 case .ranking(let ranking):
                     RankingScreen(ranking: ranking, player: session.player)
-                case .refused(let text), .ended(let text):
+                case .ended(_, final: let final?):
+                    RankingScreen(ranking: final, player: session.player)
+                case .refused(let text), .ended(let text, _):
                     MessageScreen(text: text, busy: false)
                 }
             }
@@ -298,6 +300,13 @@ private struct ResultScreen: View {
             if let result = reveal.result, !result.correct {
                 Text("The answer was \(correctText)").foregroundStyle(Theme.muted)
             }
+            if !reveal.counts.isEmpty {
+                AnswerCounts(
+                    counts: reveal.counts, answers: answers, correct: Int(reveal.correct),
+                    choice: reveal.result?.choice.map(Int.init)
+                )
+                .padding(.top, 8)
+            }
             Spacer()
         }
         .padding(.top, 24)
@@ -307,6 +316,64 @@ private struct ResultScreen: View {
     private var panelColour: Color {
         guard let result = reveal.result else { return Theme.panel }
         return result.correct ? Theme.right : Theme.wrong
+    }
+}
+
+/// Every answer with how many chose it, as the big screen shows them: a row per answer, in its colour and shape, with
+/// its text, its count, and a bar across it as long as its share of the most chosen; the correct answer's bright and
+/// ticked and the others faded, and this player's choice outlined.
+private struct AnswerCounts: View {
+    let counts: [UInt32]
+    let answers: [String]
+    let correct: Int
+    let choice: Int?
+
+    var body: some View {
+        let most = CGFloat(max(1, counts.max() ?? 0))
+        VStack(spacing: 8) {
+            ForEach(Array(counts.enumerated()), id: \.offset) { position, count in
+                HStack(spacing: 10) {
+                    AnswerShape(position: position).fill(.white).frame(width: 22, height: 22)
+                    Text(text(position)).fontWeight(.bold).frame(maxWidth: .infinity, alignment: .leading)
+                    if position == correct {
+                        Image(systemName: "checkmark").fontWeight(.heavy)
+                    }
+                    Text("\(count)").font(.title3.weight(.heavy)).monospacedDigit()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(alignment: .leading) {
+                    GeometryReader { space in
+                        AnswerStyle.at(position).color
+                            .opacity(position == correct ? 1 : 0.45)
+                            .frame(width: space.size.width * CGFloat(count) / most)
+                    }
+                }
+                .background(Theme.panel)
+                .clipShape(.rect(cornerRadius: 12))
+                .overlay {
+                    if position == choice {
+                        RoundedRectangle(cornerRadius: 12).strokeBorder(.white, lineWidth: 3)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(label(position: position, count: count))
+            }
+        }
+    }
+
+    /// An answer's text, if the phone saw the question, which it did not if it joined during the reveal.
+    private func text(_ position: Int) -> String {
+        answers.indices.contains(position) ? answers[position] : ""
+    }
+
+    /// What VoiceOver reads for an answer, e.g. "red triangle, Paris, 3 players, correct, your answer".
+    private func label(position: Int, count: UInt32) -> String {
+        let style = AnswerStyle.at(position)
+        var words = "\(style.name) \(style.shape), \(text(position)), \(count) \(count == 1 ? "player" : "players")"
+        if position == correct { words += ", correct" }
+        if position == choice { words += ", your answer" }
+        return words
     }
 }
 

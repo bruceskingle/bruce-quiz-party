@@ -19,3 +19,31 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "2"
 anyhow = "1.0"
+
+# How bruce-method-release releases the apps, to the App Store, see its README: the workflow which builds, signs and
+# uploads them, and each app.
+[workspace.metadata.bruce-method]
+kind = "app-store"
+workflow = "release.yml"
+
+# The iPhone app, for players and the host.
+[[workspace.metadata.bruce-method.apps]]
+platform = "ios"
+project = "ios/QuizParty.xcodeproj"
+scheme = "QuizParty"
+swift-package = "ios/QuizPartyKit"
+# Built with Xcode 27, for the iOS 27 SDK App Store Connect asks for from April 2027, on GitHub's image which has it
+# while macos-latest does not.
+runner = "xcode-27"
+xcode = "27.2"
+
+# The Mac controller, built with the store feature, which leaves out what the App Sandbox does not allow.
+[[workspace.metadata.bruce-method.apps]]
+platform = "macos"
+dioxus = "server"
+features = ["store"]
+entitlements = "server/store.entitlements"
+category = "public.app-category.trivia-games"
+exempt-encryption = true
+# Its name in Finder and the menu bar, which dx would make BruceQuizParty, and its package's, BrucesQuizParty.pkg.
+name = "Bruce's Quiz Party"

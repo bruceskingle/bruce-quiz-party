@@ -1,5 +1,8 @@
-# The tests, Rust's and the iOS app's Swift package's, on a Mac as the controller is a Mac app, and cargo-deny's checks of the dependencies' licences, advisories
-# and sources, see deny.toml, on every push and pull request.
+# Made by bruce-method-release's setup from its ci-app-store.yml template. Change the template, or this repository's
+# hooks, not this file: setup replaces it, and the release checks fail while it differs.
+#
+# The tests, Rust's and those of the iOS apps' Swift packages, on a Mac, as the apps are Apple's, and cargo-deny's
+# checks of the dependencies' licences, advisories and sources, see deny.toml, on every push and pull request.
 name: CI
 
 on:

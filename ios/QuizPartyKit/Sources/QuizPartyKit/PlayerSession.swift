@@ -110,6 +110,14 @@ public struct Ranking: Equatable, Sendable {
         }
     }
 
+    /// The party's final scores, under the thanks, as the big screen shows them once the party is over.
+    public static func finalScores(_ board: Leaderboard) -> Ranking {
+        var ranking = Ranking(board)
+        ranking.title = "Thanks for Playing!"
+        ranking.progress = "The party's final scores"
+        return ranking
+    }
+
     /// The standings after a question, and how far through the quiz.
     public init(_ standings: [Standing], progress: Progress? = nil) {
         title = "Standings"
@@ -136,8 +144,8 @@ public final class PlayerSession {
         case ranking(Ranking)
         /// The join was refused, e.g. a wrong game code: the player must change something and join again.
         case refused(String)
-        /// The party is over for this player, with why.
-        case ended(String)
+        /// The party is over for this player, with why, and the party's final scores, if it ended with any.
+        case ended(String, final: Ranking? = nil)
     }
 
     public let address: PartyAddress
@@ -285,9 +293,9 @@ public final class PlayerSession {
             connection?.stop()
             memory.forget(code: code)
             screen = .ended("The host removed you from the party.")
-        case .partyEnded:
+        case .partyEnded(let board):
             connection?.stop()
-            screen = .ended("The party is over. Thanks for playing!")
+            screen = .ended("The party is over. Thanks for playing!", final: board.map(Ranking.finalScores))
         case .resumed, .paired, .hostState, .unknown:
             // For host mode, or from a newer controller.
             break

@@ -153,13 +153,7 @@ async fn plays_a_quiz() {
         (false, 0, 2, Some(2))
     );
 
-    // Next counts down first, so that the players see what is coming; pressed again, it moves on at once.
-    shared.next();
-    let ServerMessage::Countdown { next, in_ms } = receive(&mut jo).await else {
-        panic!("no countdown")
-    };
-    assert_eq!(next, "Standings");
-    assert!((2000..=3000).contains(&in_ms), "{in_ms}");
+    // Show Standings is at once.
     shared.next();
     let ServerMessage::Standings { standings, progress } = receive(&mut jo).await else {
         panic!("no standings")
@@ -169,9 +163,14 @@ async fn plays_a_quiz() {
         progress.map(|progress| progress.words()).as_deref(),
         Some("After 1 of 2 Questions")
     );
-    // From here, without the countdown.
-    shared.hub().party.auto_advance.countdown_secs = 0;
 
+    // Next on the standings counts down first, so that the players are ready; pressed again, it moves on at once.
+    shared.next();
+    let ServerMessage::Countdown { next, in_ms } = receive(&mut jo).await else {
+        panic!("no countdown")
+    };
+    assert_eq!(next, "Next question");
+    assert!((2000..=3000).contains(&in_ms), "{in_ms}");
     shared.next();
     let ServerMessage::Question(view) = receive(&mut jo).await else {
         panic!("no second question")
@@ -202,6 +201,17 @@ async fn plays_a_quiz() {
     .await;
     assert_eq!(shared.hub().party.phase, Phase::Lobby);
     assert_eq!(shared.hub().party.played, vec![0]);
+
+    // Ending the party thanks the players with its final scores, as the big screen shows them.
+    shared.end_party();
+    let board = until(&mut jo, |message| match message {
+        ServerMessage::PartyEnded { leaderboard } => Some(leaderboard),
+        _ => None,
+    })
+    .await
+    .expect("the final scores");
+    assert_eq!(board.sorted_by, LeaderboardKind::Party);
+    assert_eq!(board.rows[0].name, "Sam");
 }
 
 #[tokio::test]

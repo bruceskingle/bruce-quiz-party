@@ -250,7 +250,11 @@ function receive(message) {
       break;
     case "party_ended":
       state.stayConnected = false;
-      showMessage("The party is over. Thanks for playing!");
+      if (message.leaderboard) {
+        showFinalScores(message.leaderboard);
+      } else {
+        showMessage("The party is over. Thanks for playing!");
+      }
       break;
     default:
       // Messages for later milestones, or from a newer controller, are ignored.
@@ -387,7 +391,39 @@ function showResult(reveal) {
     $("result-rank").textContent = "You're " + ordinal(result.quiz_rank) + " with " + result.quiz_score + " points";
     $("result-answer").textContent = result.correct ? "" : "The answer was " + correctText;
   }
+  showCounts(reveal);
   show("result");
+}
+
+/**
+ * Shows every answer with how many chose it, as the big screen does: a row per answer, in its colour and shape, with
+ * its text, its count, and a bar across it as long as its share of the most chosen; the correct answer's bright and
+ * ticked and the others faded, and this player's choice outlined.
+ */
+function showCounts(reveal) {
+  const chart = $("result-chart");
+  const counts = reveal.counts || [];
+  const most = Math.max(1, ...counts);
+  const choice = reveal.result ? reveal.result.choice : null;
+  chart.replaceChildren(
+    ...counts.map((count, position) => {
+      const row = document.createElement("div");
+      row.className =
+        "chart-row" + (position === reveal.correct ? " correct" : "") + (position === choice ? " chosen" : "");
+      const fill = document.createElement("div");
+      fill.className = "chart-fill answer-" + position;
+      fill.style.width = (count / most) * 100 + "%";
+      const text = document.createElement("span");
+      text.className = "chart-text";
+      text.textContent = (state.answers[position] || "") + (position === reveal.correct ? " ✓" : "");
+      const number = document.createElement("span");
+      number.className = "chart-count";
+      number.textContent = count;
+      row.append(fill, shape(position), text, number);
+      return row;
+    }),
+  );
+  chart.hidden = counts.length === 0;
 }
 
 /** How far through its quiz the party is, e.g. "After 6 of 20 Questions", as the protocol's Progress::words says it. */
@@ -419,6 +455,15 @@ function showLeaderboard(board) {
       board.rows.map((row) => ({ player: row.player, name: row.name, score: row.total, rank: row.rank })),
     );
   }
+}
+
+/** Shows the party's final leaderboard under the thanks, as the big screen does, once the party is over. */
+function showFinalScores(board) {
+  showRanking(
+    "Thanks for Playing!",
+    board.rows.map((row) => ({ player: row.player, name: row.name, score: row.total, rank: row.rank })),
+  );
+  $("standings-progress").textContent = "The party's final scores";
 }
 
 /** Shows a ranking under a title: the top five, and this player's place and score. */

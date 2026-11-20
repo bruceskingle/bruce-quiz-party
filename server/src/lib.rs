@@ -4,6 +4,7 @@
 /// Whether this is the Mac App Store's build, see the `store` feature in Cargo.toml.
 pub const STORE: bool = cfg!(feature = "store");
 
+mod add_to_library;
 mod answer_shape;
 mod big_screen;
 mod bonjour;

@@ -66,12 +66,12 @@ From the controller:
 | `question` | A question, without its answer, sent to every player at the same moment. |
 | `answer_locked` | The player's answer was taken. |
 | `answer_count` | How many players have answered so far, sent at most every quarter of a second. |
-| `reveal` | The correct answer, how many chose each, the source link, how this player did, and the next question's image, for the phone to fetch now. |
+| `reveal` | The correct answer, how many chose each, which the phone shows as a chart under how this player did, the source link, how this player did, and the next question's image, for the phone to fetch now. |
 | `standings` | The places after a question, other than a quiz's last. |
 | `leaderboard` | After a quiz's last question, its leaderboard, sorted by its places, then the party's, sorted by the totals. |
 | `countdown` | The party moves on soon, by itself or as the host pressed Next: what comes `next`, e.g. "Next question", and `in_ms`, for a countdown under the reveal or the standings. Whatever the party shows next ends it. |
 | `paused`, `resumed` | The clock stopped or started again. While it is stopped, answers are refused; when it starts, the question is sent again with the time it had left. |
-| `removed`, `party_ended` | The player was removed, or the party is over. |
+| `removed`, `party_ended` | The player was removed, or the party is over: `party_ended` has the party's final `leaderboard`, if any quiz was played, which the phone shows under its thanks. |
 | `paired` | The phone is paired as a host: the `token` to keep, securely. |
 | `host_state` | Everything a host phone shows, whenever it changes: the game code and whether it is needed, the quizzes, the players, the phase with the correct answer and who has answered, whether it is paused, auto-advance, and what Next does. |
 
@@ -116,9 +116,10 @@ the standings for `standings_secs`, then the next question. After a quiz's last 
 leaderboard, then the party's, and waits there for the host to choose the next quiz. A question still ends when
 everyone has answered or the time is up. While the clock is stopped, nothing moves on.
 
-Whether or not it moves on by itself, Next pressed on the reveal, the standings or a quiz's leaderboard counts down for
-`countdown_secs` (3 by default, 0 for at once) before moving on, so that the players see what is coming; pressed again
-during the countdown, it moves on at once. Ending a question, Skip, and leaving the party's leaderboard are at once.
+Whether or not it moves on by itself, Next pressed on the standings, a quiz's last reveal or a quiz's leaderboard counts
+down for `countdown_secs` (3 by default, 0 for at once) before moving on, so that the players see what is coming;
+pressed again during the countdown, it moves on at once. Ending a question, Show Standings from the reveal, Skip, and
+leaving the party's leaderboard are at once.
 The players are sent `countdown` whenever the party is counting down, for the whole wait if it moves on by itself.
 
 ## Ranks

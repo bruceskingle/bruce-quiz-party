@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+	The Mac App Store's build's entitlements, what its App Sandbox lets it do, which its release workflow signs it with,
+	see the bruce-method settings in Cargo.toml. Each was found needed by running a sandboxed copy, 19 Nov 2026.
+-->
+<plist version="1.0">
+<dict>
+	<!-- The Mac App Store requires the App Sandbox. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Phones join the party's web server, which advertises itself with Bonjour. -->
+	<key>com.apple.security.network.server</key>
+	<true/>
+	<!-- Online quiz libraries, Wikipedia and Claude's API. -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- The folders the host chooses in the Open dialog, e.g. a library's. -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<!-- Bookmarks of those folders, to open them again in a later run, see server/src/folder_access.rs. -->
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+</dict>
+</plist>
