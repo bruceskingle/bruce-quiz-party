@@ -49,7 +49,7 @@ Shared by both platforms.
 | Primary category | Games, with the subcategories Trivia and Family |
 | Secondary category | Entertainment |
 | Content rights | Yes, it contains third-party content, and I have the rights to use it: the sample quizzes' text and pictures come from Wikipedia and Wikimedia Commons, under CC BY-SA and other free licences, credited in each quiz |
-| Age rating | Answer "None" throughout; nothing is unrestricted web access, as the app shows only quizzes |
+| Age rating | Answered for the app and its default library, which is curated: "None" throughout, and No to user-generated content, unrestricted web access, messaging, advertising and gambling, for 4+; the App Review notes say how quizzes come from the host. The Age Rating Override can choose a higher rating, e.g. 9+, if preferred |
 | Privacy policy URL | The [Privacy Policy](#privacy-policy) above, on GitHub, see below |
 | App Privacy | Data Not Collected |
 | Price | Free, in every country and region |
@@ -97,8 +97,11 @@ trivia,pub quiz,quiz night,family,multiplayer,game show,questions,wikipedia,big 
 
 **Copyright:** `2026 Bruce Skingle`
 
-**Screenshots:** in [app-store/iphone](app-store/iphone) for the 6.9" iPhone (1320 × 2868), and
-[app-store/ipad](app-store/ipad) for the 13" iPad (2064 × 2752), in this order:
+**Screenshots:** App Store Connect groups iPhones by display, and requires "iPhone with Dynamic Island (medium
+display)": [app-store/iphone-medium](app-store/iphone-medium), 1206 × 2622, from the iPhone 18 Pro simulator. The
+large display's, [app-store/iphone-large](app-store/iphone-large), 1320 × 2868, from the iPhone 18 Pro Max, are
+optional. The 13" iPad's are in [app-store/ipad](app-store/ipad), 2064 × 2752. None may have an alpha channel, which
+the simulator's PNGs have, so they were saved without one. In this order:
 
 1. `2-question.png`, a question with its picture
 2. `3-reveal.png`, the result, with how everyone answered
@@ -169,6 +172,13 @@ Sign-in required: no. Contact: your name, phone and email.
 >
 > Write a Quiz with Claude, on the Mac's Quizzes page, is optional and needs the user's own Anthropic API key; the
 > library's quizzes need nothing.
+>
+> Quizzes are content the host chooses: the app ships with none. The host writes their own in the app's editor, has
+> Claude draft one from Wikipedia's articles (reviewed by the host before playing), or downloads them from a library:
+> by default the developer's own, curated library, or one at an address the host gives, like opening a file. The app
+> does not host, share or exchange content between its users: there are no accounts, profiles, messaging or chat, and
+> a party is played among people in the same room, on their local Wi-Fi. Players' typed names are shown only on the
+> host's big screen, and the host can remove a player.
 
 A new install of the Mac app has no quizzes: App Review gets them from the default library,
 `https://raw.githubusercontent.com/bruceskingle/bruce-quiz-library/main`, which must be on GitHub, public, with its
